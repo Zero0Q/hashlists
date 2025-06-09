@@ -948,33 +948,78 @@
 				// Load settings and update UI
 				initializeSettings();
 
-				// Load all HTML files - fix the path issue
-				const hashlistsPath = window.location.pathname.includes('/hashlists') ? './' : './';
-				fetch(hashlistsPath)
-					.then(response => response.text())
-					.then(data => {
-						const parser = new DOMParser();
-						const doc = parser.parseFromString(data, "text/html");
-						const links = doc.querySelectorAll("a");
-
-						links.forEach(link => {
-							const href = link.getAttribute("href");
-							if (href && href.endsWith(".html")) {
-								htmlFiles.push(href);
+				// Load all HTML files - improved approach for GitHub Pages
+				function loadHashLists() {
+					// Since GitHub Pages doesn't provide directory listings reliably,
+					// we'll try multiple approaches to find hash lists
+					
+					// First, try to use the API manager to get files
+					apiManager.getAllHashListFiles()
+						.then(files => {
+							if (files.length > 0) {
+								htmlFiles = files;
+								console.log(`Found ${htmlFiles.length} hash list files`);
+								
+								// Set initial iframe source to the first file
+								iframe.src = htmlFiles[0];
+								currentPathElement.textContent = `${htmlFiles[0]} (1 of ${htmlFiles.length})`;
+							} else {
+								// Fallback: try to load a sample file to verify the directory structure
+								tryLoadSampleFiles();
 							}
+						})
+						.catch(error => {
+							console.error("Error loading hash lists:", error);
+							tryLoadSampleFiles();
 						});
+				}
 
-						// Set initial iframe source to the first file
-						if (htmlFiles.length > 0) {
-							iframe.src = htmlFiles[0];
-							currentPathElement.textContent = htmlFiles[0];
-						}
-					})
-					.catch(error => {
-						console.error("Error loading hashlists:", error);
-						// Fallback: try to load from current directory
-						currentPathElement.textContent = "Hash lists loaded from current directory";
+				function tryLoadSampleFiles() {
+					// Try to load some of the known hash list files from your workspace
+					const sampleFiles = [
+						'00011863-7c82-4d3c-846a-deeb5ac0d6be.html',
+						'0009723c-6fdb-4110-ad32-91a8e42cee70.html',
+						'0009eea2-1e8d-4cab-9a10-faead8e2ad9c.html',
+						'000b79ce-c4ee-4d2a-adaf-6a535c728327.html',
+						'0010b5cf-24bd-4693-a0a6-e260bc511c3b.html'
+					];
+
+					let loadedFiles = [];
+					let checksCompleted = 0;
+
+					sampleFiles.forEach(file => {
+						fetch(file, { method: 'HEAD' })
+							.then(response => {
+								checksCompleted++;
+								if (response.ok) {
+									loadedFiles.push(file);
+								}
+								
+								if (checksCompleted === sampleFiles.length) {
+									if (loadedFiles.length > 0) {
+										htmlFiles = loadedFiles;
+										console.log(`Found ${htmlFiles.length} sample hash list files`);
+										iframe.src = htmlFiles[0];
+										currentPathElement.textContent = `${htmlFiles[0]} (1 of ${htmlFiles.length})`;
+										showToast(`Loaded ${htmlFiles.length} hash list files. Note: This is a sample - your workspace contains many more files.`, 'info');
+									} else {
+										currentPathElement.textContent = "No hash lists found";
+										showToast('No hash list files could be loaded. Please check that the files are accessible.', 'error');
+									}
+								}
+							})
+							.catch(error => {
+								checksCompleted++;
+								if (checksCompleted === sampleFiles.length && loadedFiles.length === 0) {
+									currentPathElement.textContent = "Error loading hash lists";
+									showToast('Failed to load hash list files. Please refresh the page.', 'error');
+								}
+							});
 					});
+				}
+
+				// Load hash lists on startup
+				loadHashLists();
 
 				// Button event listeners
 				allHashlistsButton.addEventListener("click", function () {
