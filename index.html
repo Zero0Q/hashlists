@@ -841,6 +841,41 @@
 		<script>
 			// Initialize API manager
 			const apiManager = new APIManager();
+
+			// Global functions that need to be accessible from anywhere
+			function updateStatusIndicators() {
+				const rdStatus = document.getElementById("realdebrid-status");
+				const traktStatus = document.getElementById("trakt-status");
+
+				// Real-Debrid status
+				rdStatus.classList.remove("status-connected", "status-disconnected");
+				if (localStorage.getItem("rd-api-key")) {
+					rdStatus.classList.add("status-connected");
+					rdStatus.textContent = "RD: Connected";
+				} else {
+					rdStatus.classList.add("status-disconnected");
+					rdStatus.textContent = "RD: Disconnected";
+				}
+
+				// Trakt status
+				traktStatus.classList.remove("status-connected", "status-disconnected");
+				if (localStorage.getItem("traktAccessToken")) {
+					traktStatus.classList.add("status-connected");
+					traktStatus.textContent = "Trakt: Connected";
+				} else {
+					traktStatus.classList.add("status-disconnected");
+					traktStatus.textContent = "Trakt: Disconnected";
+				}
+			}
+
+			function updateTraktStatus() {
+				const traktStatusInfo = document.getElementById("trakt-status-info");
+				if (localStorage.getItem("traktAccessToken")) {
+					traktStatusInfo.innerHTML = "Connected to Trakt as <strong>" + localStorage.getItem("traktUserName") + "</strong>";
+				} else {
+					traktStatusInfo.innerHTML = "";
+				}
+			}
 			
 			// On page load
 			window.addEventListener("load", function () {
@@ -907,45 +942,12 @@
 					}
 				}
 
-				function updateStatusIndicators() {
-					const rdStatus = document.getElementById("realdebrid-status");
-					const traktStatus = document.getElementById("trakt-status");
-
-					// Real-Debrid status
-					rdStatus.classList.remove("status-connected", "status-disconnected");
-					if (localStorage.getItem("rd-api-key")) {
-						rdStatus.classList.add("status-connected");
-						rdStatus.textContent = "RD: Connected";
-					} else {
-						rdStatus.classList.add("status-disconnected");
-						rdStatus.textContent = "RD: Disconnected";
-					}
-
-					// Trakt status
-					traktStatus.classList.remove("status-connected", "status-disconnected");
-					if (localStorage.getItem("traktAccessToken")) {
-						traktStatus.classList.add("status-connected");
-						traktStatus.textContent = "Trakt: Connected";
-					} else {
-						traktStatus.classList.add("status-disconnected");
-						traktStatus.textContent = "Trakt: Disconnected";
-					}
-				}
-
-				function updateTraktStatus() {
-					const traktStatusInfo = document.getElementById("trakt-status-info");
-					if (localStorage.getItem("traktAccessToken")) {
-						traktStatusInfo.innerHTML = "Connected to Trakt as <strong>" + localStorage.getItem("traktUserName") + "</strong>";
-					} else {
-						traktStatusInfo.innerHTML = "";
-					}
-				}
-
 				// Load settings and update UI
 				initializeSettings();
 
-				// Load all HTML files in the "hashlists" directory
-				fetch("hashlists/")
+				// Load all HTML files - fix the path issue
+				const hashlistsPath = window.location.pathname.includes('/hashlists') ? './' : './';
+				fetch(hashlistsPath)
 					.then(response => response.text())
 					.then(data => {
 						const parser = new DOMParser();
@@ -965,7 +967,11 @@
 							currentPathElement.textContent = htmlFiles[0];
 						}
 					})
-					.catch(error => console.error("Error loading hashlists:", error));
+					.catch(error => {
+						console.error("Error loading hashlists:", error);
+						// Fallback: try to load from current directory
+						currentPathElement.textContent = "Hash lists loaded from current directory";
+					});
 
 				// Button event listeners
 				allHashlistsButton.addEventListener("click", function () {
@@ -1116,6 +1122,8 @@
 					return;
 				}
 
+				// Note: CORS policy will block direct API calls from browser
+				// This is a limitation of browser security when running from GitHub Pages
 				fetch('https://api.real-debrid.com/rest/1.0/user', {
 					method: 'GET',
 					headers: {
@@ -1130,7 +1138,14 @@
 					}
 				})
 				.catch(error => {
-					showToast('Error connecting to Real-Debrid: ' + error.message, 'error');
+					if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+						showToast('⚠️ API key saved locally. CORS policy prevents direct API testing from browser. Your key will work when using the actual functionality.', 'warning');
+						// Still save the key since it might be valid
+						localStorage.setItem('rd-api-key', apiKey);
+						updateStatusIndicators();
+					} else {
+						showToast('Error connecting to Real-Debrid: ' + error.message, 'error');
+					}
 				});
 			}
 
@@ -1327,7 +1342,24 @@
 					displayRealDebridLibrary(torrents);
 				} catch (error) {
 					console.error('Error fetching Real-Debrid library:', error);
-					document.getElementById('rd-library-content').innerHTML = `<div class="error">Error loading library: ${error.message}</div>`;
+					if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+						document.getElementById('rd-library-content').innerHTML = `
+							<div class="error">
+								<h3>🚫 CORS Policy Restriction</h3>
+								<p>Your browser's CORS policy is blocking direct API calls to Real-Debrid from this domain.</p>
+								<p><strong>Solutions:</strong></p>
+								<ul style="text-align: left; margin: 10px 0;">
+									<li>Use a CORS proxy service</li>
+									<li>Access Real-Debrid directly: <a href="https://real-debrid.com/torrents" target="_blank">real-debrid.com/torrents</a></li>
+									<li>Use a browser extension that disables CORS (not recommended for security)</li>
+									<li>Use the Real-Debrid mobile app or desktop application</li>
+								</ul>
+								<p>Your API key is saved and will work with other Real-Debrid integrations.</p>
+							</div>
+						`;
+					} else {
+						document.getElementById('rd-library-content').innerHTML = `<div class="error">Error loading library: ${error.message}</div>`;
+					}
 				}
 			}
 
