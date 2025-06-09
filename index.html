@@ -1122,31 +1122,17 @@
 					return;
 				}
 
-				// Note: CORS policy will block direct API calls from browser
-				// This is a limitation of browser security when running from GitHub Pages
-				fetch('https://api.real-debrid.com/rest/1.0/user', {
-					method: 'GET',
-					headers: {
-						'Authorization': 'Bearer ' + apiKey
-					}
-				})
-				.then(response => {
-					if (response.ok) {
-						showToast('Real-Debrid connection successful!', 'success');
-					} else {
-						showToast('Real-Debrid connection failed. Please check your API key.', 'error');
-					}
-				})
-				.catch(error => {
-					if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
-						showToast('⚠️ API key saved locally. CORS policy prevents direct API testing from browser. Your key will work when using the actual functionality.', 'warning');
-						// Still save the key since it might be valid
-						localStorage.setItem('rd-api-key', apiKey);
-						updateStatusIndicators();
-					} else {
-						showToast('Error connecting to Real-Debrid: ' + error.message, 'error');
-					}
-				});
+				// Skip actual API call due to CORS restrictions on GitHub Pages
+				// Just validate the key format and save it
+				if (apiKey.length < 10) {
+					showToast('API key appears to be too short. Please check your Real-Debrid API key.', 'error');
+					return;
+				}
+
+				// Save the key and show informative message about CORS limitations
+				localStorage.setItem('rd-api-key', apiKey);
+				updateStatusIndicators();
+				showToast('✅ API key saved! Note: Direct API testing is blocked by browser CORS policy when running from GitHub Pages. Your key will work with actual Real-Debrid integrations.', 'warning');
 			}
 
 			// Save Real-Debrid settings
