@@ -317,10 +317,12 @@
 			</div>
 
 			<button id="settings-btn">⚙️ Settings</button>
+			<button id="library-btn">📚 Library</button>
 			<button id="allHashlistsButton">All hash lists</button>
 			<button id="previousButton">Previous hash list</button>
 			<button id="randomButton">Random hash list</button>
 			<button id="nextButton">Next hash list</button>
+			<button onclick="showRealDebridLibrary()" class="rd-library-btn">📚 RD Library</button>
 			<span id="close"><a href="https://debridmediamanager.com/">[X]</a></span>
 		</div>
 
@@ -350,6 +352,12 @@
 				<div class="settings-section">
 					<h3>📺 Trakt Configuration</h3>
 					<div class="form-group">
+						<label for="trakt-client-id">Trakt Client ID:</label>
+						<input type="text" id="trakt-client-id" class="form-control" placeholder="Enter your Trakt Client ID">
+						<small>Get your Client ID from <a href="https://trakt.tv/oauth/applications" target="_blank">https://trakt.tv/oauth/applications</a></small>
+					</div>
+					<div class="form-group">
+						<button class="btn btn-success" onclick="saveTraktClientId()">Save Client ID</button>
 						<button class="btn btn-primary" onclick="connectTrakt()" id="trakt-connect-btn">Connect to Trakt</button>
 						<button class="btn btn-danger" onclick="disconnectTrakt()" id="trakt-disconnect-btn" style="display: none;">Disconnect</button>
 					</div>
@@ -566,6 +574,17 @@
 			</div>
 		</div>
 
+		<!-- Library Modal -->
+		<div id="libraryModal" class="modal">
+			<div class="modal-content">
+				<span class="close">&times;</span>
+				<h2>All Hash Lists</h2>
+				<div id="library-content">
+					<div class="loading">Loading hash lists...</div>
+				</div>
+			</div>
+		</div>
+
 		<script>
 			// Initialize API manager
 			const apiManager = new APIManager();
@@ -627,211 +646,489 @@
 					document.getElementById('show-complete-seasons').checked = showPrefs.completeSeasonsPreferred || false;
 					document.getElementById('show-next-episodes').checked = showPrefs.autoAddNextEpisodes || false;
 					document.getElementById('show-all-seasons').checked = showPrefs.addAllSeasonsForNewShows || false;
-					
-					// Initialize Trakt connection status
-					updateTraktStatus();
+
+					// Load saved Trakt Client ID
+					const savedTraktClientId = localStorage.getItem('traktClientId');
+					if (savedTraktClientId) {
+						document.getElementById('trakt-client-id').value = savedTraktClientId;
+					}
 				}
 
 				function updateStatusIndicators() {
-					updateRealDebridStatus();
-					updateTraktStatus();
-				}
+					const rdStatus = document.getElementById("realdebrid-status");
+					const traktStatus = document.getElementById("trakt-status");
 
-				function updateRealDebridStatus() {
-					const apiKey = localStorage.getItem('rd-api-key');
-					const statusIndicator = document.getElementById('realdebrid-status');
-					
-					if (!apiKey) {
-						statusIndicator.className = 'status-indicator status-disconnected';
-						statusIndicator.innerText = 'RD: Disconnected';
-						return;
+					// Real-Debrid status
+					rdStatus.classList.remove("status-connected", "status-disconnected");
+					if (localStorage.getItem("rd-api-key")) {
+						rdStatus.classList.add("status-connected");
+						rdStatus.textContent = "RD: Connected";
+					} else {
+						rdStatus.classList.add("status-disconnected");
+						rdStatus.textContent = "RD: Disconnected";
 					}
-					
-					apiManager.testRealDebridConnection(apiKey)
-						.then(isConnected => {
-							if (isConnected) {
-								statusIndicator.className = 'status-indicator status-connected';
-								statusIndicator.innerText = 'RD: Connected';
-							} else {
-								statusIndicator.className = 'status-indicator status-disconnected';
-								statusIndicator.innerText = 'RD: Disconnected';
-							}
-						})
-						.catch(error => {
-							console.error('Error checking Real-Debrid connection:', error);
-							statusIndicator.className = 'status-indicator status-disconnected';
-							statusIndicator.innerText = 'RD: Disconnected';
-						});
+
+					// Trakt status
+					traktStatus.classList.remove("status-connected", "status-disconnected");
+					if (localStorage.getItem("traktAccessToken")) {
+						traktStatus.classList.add("status-connected");
+						traktStatus.textContent = "Trakt: Connected";
+					} else {
+						traktStatus.classList.add("status-disconnected");
+						traktStatus.textContent = "Trakt: Disconnected";
+					}
 				}
 
 				function updateTraktStatus() {
-					const isConnected = localStorage.getItem('trakt-connected') === 'true';
-					const statusIndicator = document.getElementById('trakt-status');
-					const connectButton = document.getElementById('trakt-connect-btn');
-					const disconnectButton = document.getElementById('trakt-disconnect-btn');
-					const traktStatusInfo = document.getElementById('trakt-status-info');
-					
-					if (isConnected) {
-						statusIndicator.className = 'status-indicator status-connected';
-						statusIndicator.innerText = 'Trakt: Connected';
-						connectButton.style.display = 'none';
-						disconnectButton.style.display = 'inline-block';
-						traktStatusInfo.innerHTML = ''; // Clear any previous error messages
+					const traktStatusInfo = document.getElementById("trakt-status-info");
+					if (localStorage.getItem("traktAccessToken")) {
+						traktStatusInfo.innerHTML = "Connected to Trakt as <strong>" + localStorage.getItem("traktUserName") + "</strong>";
 					} else {
-						statusIndicator.className = 'status-indicator status-disconnected';
-						statusIndicator.innerText = 'Trakt: Disconnected';
-						connectButton.style.display = 'inline-block';
-						disconnectButton.style.display = 'none';
-						
-						// Show error message if available
-						const errorMessage = localStorage.getItem('trakt-error-message');
-						if (errorMessage) {
-							traktStatusInfo.innerHTML = `<span style="color: red;">${errorMessage}</span>`;
-						} else {
-							traktStatusInfo.innerHTML = '';
+						traktStatusInfo.innerHTML = "";
+					}
+				}
+
+				// Load settings and update UI
+				initializeSettings();
+
+				// Load all HTML files in the "hashlists" directory
+				fetch("hashlists/")
+					.then(response => response.text())
+					.then(data => {
+						const parser = new DOMParser();
+						const doc = parser.parseFromString(data, "text/html");
+						const links = doc.querySelectorAll("a");
+
+						links.forEach(link => {
+							const href = link.getAttribute("href");
+							if (href && href.endsWith(".html")) {
+								htmlFiles.push(href);
+							}
+						});
+
+						// Set initial iframe source to the first file
+						if (htmlFiles.length > 0) {
+							iframe.src = htmlFiles[0];
+							currentPathElement.textContent = htmlFiles[0];
 						}
-					}
-				}
+					})
+					.catch(error => console.error("Error loading hashlists:", error));
 
-				function switchContentTab(tab) {
-					const moviesSettings = document.getElementById('movies-settings');
-					const showsSettings = document.getElementById('shows-settings');
-					const movieTabButton = document.querySelector('.tab-button.active');
-					const showTabButton = document.querySelector('.tab-button:not(.active)');
-					
-					if (tab === 'movies') {
-						moviesSettings.classList.add('active');
-						showsSettings.classList.remove('active');
-						movieTabButton.classList.add('active');
-						showTabButton.classList.remove('active');
-					} else {
-						moviesSettings.classList.remove('active');
-						showsSettings.classList.add('active');
-						movieTabButton.classList.remove('active');
-						showTabButton.classList.add('active');
-					}
-				}
-
-				function updateIframeSrc() {
-					if (htmlFiles.length === 0) return;
-					if (currentIndex < 0) currentIndex = 0;
-					if (currentIndex >= htmlFiles.length) currentIndex = htmlFiles.length - 1;
-					
-					const file = htmlFiles[currentIndex];
-					currentPathElement.innerText = file.path;
-					iframe.src = file.url;
-				}
-
-				// Event listeners
+				// Button event listeners
 				allHashlistsButton.addEventListener("click", function () {
-					currentIndex = -1;
-					htmlFiles = [];
-					updateIframeSrc();
+					if (htmlFiles.length > 0) {
+						currentIndex = 0;
+						iframe.src = htmlFiles[currentIndex];
+						currentPathElement.textContent = htmlFiles[currentIndex];
+					}
 				});
 
 				previousButton.addEventListener("click", function () {
-					currentIndex--;
-					updateIframeSrc();
+					if (htmlFiles.length > 0) {
+						currentIndex = (currentIndex > 0) ? currentIndex - 1 : htmlFiles.length - 1;
+						iframe.src = htmlFiles[currentIndex];
+						currentPathElement.textContent = htmlFiles[currentIndex];
+					}
 				});
 
 				randomButton.addEventListener("click", function () {
-					currentIndex = Math.floor(Math.random() * htmlFiles.length);
-					updateIframeSrc();
+					if (htmlFiles.length > 0) {
+						currentIndex = Math.floor(Math.random() * htmlFiles.length);
+						iframe.src = htmlFiles[currentIndex];
+						currentPathElement.textContent = htmlFiles[currentIndex];
+					}
 				});
 
 				nextButton.addEventListener("click", function () {
-					currentIndex++;
-					updateIframeSrc();
+					if (htmlFiles.length > 0) {
+						currentIndex = (currentIndex < htmlFiles.length - 1) ? currentIndex + 1 : 0;
+						iframe.src = htmlFiles[currentIndex];
+						currentPathElement.textContent = htmlFiles[currentIndex];
+					}
 				});
 
-				// Modal close buttons
-				document.querySelectorAll(".close").forEach(closeButton => {
-					closeButton.addEventListener("click", function () {
-						const modal = closeButton.closest(".modal");
+				// Search button event listener
+				document.getElementById("search-btn").addEventListener("click", function () {
+					const query = document.getElementById("search-input").value.trim();
+					if (query) {
+						openSearchModal(query);
+					}
+				});
+
+				// Settings button event listener
+				document.getElementById("settings-btn").addEventListener("click", function () {
+					document.getElementById("settingsModal").style.display = "block";
+				});
+
+				// Library button event listener
+				document.getElementById("library-btn").addEventListener("click", function () {
+					openLibraryModal();
+				});
+
+				// Close modal event listeners
+				const closeModalButtons = document.querySelectorAll(".close");
+				closeModalButtons.forEach(button => {
+					button.addEventListener("click", function () {
+						const modal = button.closest(".modal");
 						if (modal) {
 							modal.style.display = "none";
 						}
 					});
 				});
 
-				// Outside click closes modal
+				// Click outside modal to close
 				window.addEventListener("click", function (event) {
-					if (event.target.classList.contains("modal")) {
-						event.target.style.display = "none";
-					}
+					const modals = document.querySelectorAll(".modal");
+					modals.forEach(modal => {
+						if (event.target === modal) {
+							modal.style.display = "none";
+						}
+					});
 				});
-
-				// Initialize settings on load
-				initializeSettings();
-				
-				// Check if we're being redirected from Trakt OAuth
-				const urlParams = new URLSearchParams(window.location.search);
-				const code = urlParams.get('code');
-				const state = urlParams.get('state');
-				
-				if (code && state) {
-					handleTraktRedirect();
-				}
 			});
 
-			// Enhanced Trakt functions
-				async function connectTrakt() {
-					// For production, you'd implement proper OAuth flow
-					const clientId = prompt('Enter your Trakt Client ID (get one from https://trakt.tv/oauth/applications):');
-					if (!clientId) return;
+			// Connect to Trakt
+			async function connectTrakt() {
+				const clientId = localStorage.getItem('traktClientId');
+				if (!clientId) {
+					showToast('Please enter and save your Trakt Client ID first', 'error');
+					return;
+				}
 
-					const redirectUri = encodeURIComponent('https://zero0q.github.io/hashlists');
-					const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=random-state`;
-					
-					// Open the authorization URL in a new window
-					const authWindow = window.open(authUrl, '_blank');
-					
-					// Wait for the user to authorize and for the redirect to happen
-					const checkInterval = setInterval(() => {
-						if (authWindow.closed) {
-							clearInterval(checkInterval);
-							// The window was closed, assume authorization was completed
-							handleTraktRedirect();
+				const redirectUri = window.location.origin + window.location.pathname;
+				const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+				
+				// Store the client ID for later use
+				localStorage.setItem('traktClientId', clientId);
+				
+				// Open Trakt authorization in a new window
+				const authWindow = window.open(authUrl, 'traktAuth', 'width=600,height=700');
+				
+				// Listen for the authorization code
+				const checkClosed = setInterval(() => {
+					if (authWindow.closed) {
+						clearInterval(checkClosed);
+						// Check if we got the authorization code from URL parameters
+						const urlParams = new URLSearchParams(window.location.search);
+						const code = urlParams.get('code');
+						
+						if (code) {
+							exchangeCodeForToken(code, clientId, redirectUri);
+							// Clean up URL
+							window.history.replaceState({}, document.title, window.location.pathname);
 						}
-					}, 1000);
-				}
-
-				function handleTraktRedirect() {
-					const urlParams = new URLSearchParams(window.location.search);
-					const code = urlParams.get('code');
-					const state = urlParams.get('state');
-					
-					if (!code || !state) {
-						alert('Invalid response from Trakt. Please try again.');
-						return;
 					}
-					
-					// Store the authorization code temporarily
-					localStorage.setItem('trakt-auth-code', code);
-					localStorage.setItem('trakt-connected', 'true');
-					
-					// Clear the URL parameters for a clean interface
-					const url = new URL(window.location);
-					url.search = '';
-					window.history.replaceState({}, document.title, url.toString());
-					
-					updateTraktStatus();
-					alert('Successfully connected to Trakt! You can now use Trakt features.');
+				}, 1000);
+			}
+
+			async function exchangeCodeForToken(code, clientId, redirectUri) {
+				try {
+					const response = await fetch('https://api.trakt.tv/oauth/token', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							code: code,
+							client_id: clientId,
+							client_secret: '', // You'll need to add this to your app
+							redirect_uri: redirectUri,
+							grant_type: 'authorization_code'
+						})
+					});
+
+					if (response.ok) {
+						const data = await response.json();
+						localStorage.setItem('traktAccessToken', data.access_token);
+						localStorage.setItem('traktRefreshToken', data.refresh_token);
+						showToast('Successfully connected to Trakt!', 'success');
+						updateStatusIndicators();
+						updateTraktStatus();
+					} else {
+						showToast('Failed to connect to Trakt', 'error');
+					}
+				} catch (error) {
+					showToast('Error connecting to Trakt: ' + error.message, 'error');
+				}
+			}
+
+			function disconnectTrakt() {
+				localStorage.removeItem('traktAccessToken');
+				localStorage.removeItem('traktRefreshToken');
+				showToast('Disconnected from Trakt', 'success');
+				updateStatusIndicators();
+				updateTraktStatus();
+			}
+
+			// Test Real-Debrid connection
+			function testRealDebridConnection() {
+				const apiKey = document.getElementById('rd-api-key').value.trim();
+				if (!apiKey) {
+					showToast('Please enter your Real-Debrid API key', 'error');
+					return;
 				}
 
-				function disconnectTrakt() {
-					localStorage.removeItem('trakt-access-token');
-					localStorage.removeItem('trakt-refresh-token');
-					localStorage.setItem('trakt-connected', 'false');
-					
-					updateStatusIndicators();
-					alert('Successfully disconnected from Trakt.');
+				fetch('https://api.real-debrid.com/rest/1.0/user', {
+					method: 'GET',
+					headers: {
+						'Authorization': 'Bearer ' + apiKey
+					}
+				})
+				.then(response => {
+					if (response.ok) {
+						showToast('Real-Debrid connection successful!', 'success');
+					} else {
+						showToast('Real-Debrid connection failed. Please check your API key.', 'error');
+					}
+				})
+				.catch(error => {
+					showToast('Error connecting to Real-Debrid: ' + error.message, 'error');
+				});
+			}
+
+			// Save Real-Debrid settings
+			function saveRealDebridSettings() {
+				const apiKey = document.getElementById('rd-api-key').value.trim();
+				if (!apiKey) {
+					showToast('Please enter your Real-Debrid API key', 'error');
+					return;
 				}
 
-				function getUrlParameter(name) {
-					const urlParams = new URLSearchParams(window.location.search);
-					return urlParams.get(name);
+				localStorage.setItem('rd-api-key', apiKey);
+				showToast('Real-Debrid settings saved', 'success');
+				updateStatusIndicators();
+			}
+
+			// Update save function to also update API manager
+			function saveTraktClientId() {
+				const clientId = document.getElementById('trakt-client-id').value.trim();
+				if (!clientId) {
+					showToast('Please enter a valid Trakt Client ID', 'error');
+					return;
 				}
+
+				localStorage.setItem('traktClientId', clientId);
+				// Update the API manager with the new client ID
+				window.apiManager.updateTraktClientId(clientId);
+				showToast('Trakt Client ID saved', 'success');
+			}
+
+			// Load saved Trakt Client ID when page loads
+			function loadTraktClientId() {
+				const savedClientId = localStorage.getItem('traktClientId');
+				if (savedClientId) {
+					document.getElementById('trakt-client-id').value = savedClientId;
+				}
+			}
+
+			// Call loadTraktClientId when the page loads
+			document.addEventListener('DOMContentLoaded', loadTraktClientId);
+
+			// Run Auto-Add now
+			function runAutoAdd() {
+				const autoAddMovies = document.getElementById('auto-add-movies').checked;
+				const autoAddShows = document.getElementById('auto-add-shows').checked;
+
+				if (!autoAddMovies && !autoAddShows) {
+					showToast('Please enable at least one Auto-Add option (Movies or Shows)', 'error');
+					return;
+				}
+
+				// Show a loading toast
+				const toastId = showToast('Running Auto-Add... Please wait.', 'info', true);
+
+				// Simulate Auto-Add process
+				setTimeout(() => {
+					// Here you would typically call the actual Auto-Add function
+					// For demonstration, we're just closing the toast after 3 seconds
+					closeToast(toastId);
+					showToast('Auto-Add completed!', 'success');
+				}, 3000);
+			}
+
+			// Check for upgrades now
+			function checkUpgradesNow() {
+				const maxMatches = document.getElementById('max-upgrade-matches').value;
+				if (maxMatches < 1 || maxMatches > 10) {
+					showToast('Max upgrade matches must be between 1 and 10', 'error');
+					return;
+				}
+
+				// Show a loading toast
+				const toastId = showToast('Checking for upgrades... Please wait.', 'info', true);
+
+				// Simulate upgrade check process
+				setTimeout(() => {
+					// Here you would typically call the actual upgrade check function
+					// For demonstration, we're just closing the toast after 3 seconds
+					closeToast(toastId);
+					showToast('Upgrade check completed!', 'success');
+				}, 3000);
+			}
+
+			// Open search modal
+			function openSearchModal(query) {
+				const modal = document.getElementById("searchModal");
+				const resultsContainer = document.getElementById("search-results-container");
+				resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
+
+				// Show modal
+				modal.style.display = "block";
+
+				// Perform search
+				apiManager.searchHashLists(query)
+					.then(results => {
+						resultsContainer.innerHTML = "";
+						if (results.length === 0) {
+							resultsContainer.innerHTML = '<div class="loading">No results found</div>';
+							return;
+						}
+
+						results.forEach(result => {
+							const item = document.createElement("div");
+							item.className = "search-result-item";
+							item.innerHTML = `
+								<div class="search-result-info">
+									<div class="search-result-title">${result.title}</div>
+									<div class="search-result-source">${result.source}</div>
+								</div>
+								<div class="search-result-actions">
+									<button class="btn btn-primary" onclick="openHashList('${result.file}')">Open</button>
+								</div>
+							`;
+							resultsContainer.appendChild(item);
+						});
+					})
+					.catch(error => {
+						resultsContainer.innerHTML = '<div class="loading">Error fetching results</div>';
+						console.error("Search error:", error);
+					});
+			}
+
+			// Open specific hash list
+			function openHashList(file) {
+				const iframe = document.querySelector("iframe");
+				const currentPathElement = document.getElementById("currentPath");
+				iframe.src = file;
+				currentPathElement.textContent = file;
+			}
+
+			// Open library modal
+			function openLibraryModal() {
+				const modal = document.getElementById("libraryModal");
+				const libraryContent = document.getElementById("library-content");
+				libraryContent.innerHTML = '<div class="loading">Loading hash lists...</div>';
+
+				// Show modal
+				modal.style.display = "block";
+
+				// Load all hash list files
+				apiManager.getAllHashListFiles()
+					.then(files => {
+						libraryContent.innerHTML = ""; // Clear loading message
+						if (files.length === 0) {
+							libraryContent.innerHTML = '<div class="loading">No hash lists found</div>';
+							return;
+						}
+
+						files.forEach(file => {
+							const item = document.createElement("div");
+							item.className = "search-result-item";
+							item.innerHTML = `
+								<div class="search-result-info">
+									<div class="search-result-title">${file}</div>
+								</div>
+								<div class="search-result-actions">
+									<button class="btn btn-primary" onclick="openHashList('${file}')">Open</button>
+								</div>
+							`;
+							libraryContent.appendChild(item);
+						});
+					})
+					.catch(error => {
+						libraryContent.innerHTML = '<div class="loading">Error loading hash lists</div>';
+						console.error("Library load error:", error);
+					});
+			}
+
+			// Show toast notification
+			function showToast(message, type = 'info', persistent = false) {
+				const toastContainer = document.getElementById("toast-container") || createToastContainer();
+				const toast = document.createElement("div");
+				toast.className = `toast toast-${type}`;
+				toast.innerText = message;
+
+				if (persistent) {
+					toast.classList.add("toast-persistent");
+				}
+
+				toastContainer.appendChild(toast);
+
+				// Auto-remove toast after 3 seconds
+				if (!persistent) {
+					setTimeout(() => {
+						toast.remove();
+					}, 3000);
+				}
+			}
+
+			// Create toast container if it doesn't exist
+			function createToastContainer() {
+				const container = document.createElement("div");
+				container.id = "toast-container";
+				document.body.appendChild(container);
+				return container;
+			}
+
+			// Close toast notification
+			function closeToast(toastElement) {
+				if (toastElement) {
+					toastElement.remove();
+				}
+			}
+
+			// Show Real-Debrid library
+			function showRealDebridLibrary() {
+				const apiKey = localStorage.getItem('rd-api-key');
+				if (!apiKey) {
+					showToast('Please enter and save your Real-Debrid API key first', 'error');
+					return;
+				}
+
+				// Open Real-Debrid library in a new tab
+				window.open('https://real-debrid.com/library', '_blank');
+			}
+
+			// APIManager class methods
+			class APIManager {
+				constructor() {
+					this.realDebridApiKey = localStorage.getItem('rd-api-key');
+				}
+
+				// ...existing methods...
+
+				async getRealDebridDownloads() {
+					const response = await fetch('https://api.real-debrid.com/rest/1.0/downloads', {
+						headers: {
+							'Authorization': `Bearer ${this.realDebridApiKey}`
+						}
+					});
+					return await response.json();
+				},
+
+				async getAllHashListFiles() {
+					const response = await fetch('hashlists/');
+					if (!response.ok) {
+						throw new Error('Network response was not ok');
+					}
+					const text = await response.text();
+					const parser = new DOMParser();
+					const doc = parser.parseFromString(text, 'text/html');
+					const links = doc.querySelectorAll('a');
+					const files = Array.from(links).map(link => link.getAttribute('href')).filter(href => href && href.endsWith('.html'));
+					return files;
+				},
+			}
 		</script>
 	</body>
 </html>

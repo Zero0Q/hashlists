@@ -3,11 +3,19 @@ class APIManager {
     constructor() {
         this.rdBaseUrl = 'https://api.real-debrid.com/rest/1.0';
         this.traktBaseUrl = 'https://api.trakt.tv';
-        this.traktClientId = 'your-trakt-client-id'; // Replace with your actual client ID
+        this.rdApiKey = null;
+        // Load Trakt Client ID from localStorage or use empty string
+        this.traktClientId = localStorage.getItem('traktClientId') || '';
+        this.traktAccessToken = null;
         this.corsProxy = 'https://corsproxy.io/?'; // CORS proxy for API calls
         
         // Quality hierarchy for upgrades (higher index = better quality)
         this.qualityHierarchy = ['480p', '720p', '1080p', '2160p', '4K', 'UHD'];
+    }
+
+    // Method to update the client ID when it's saved
+    updateTraktClientId(clientId) {
+        this.traktClientId = clientId;
     }
 
     // Real-Debrid Methods
@@ -101,6 +109,25 @@ class APIManager {
                 return { success: true, data: torrents };
             } else {
                 return { success: false, error: 'Failed to get torrents' };
+            }
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async getRealDebridDownloads(apiKey, limit = 50) {
+        try {
+            const response = await fetch(`${this.corsProxy}${this.rdBaseUrl}/downloads?limit=${limit}`, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`
+                }
+            });
+
+            if (response.ok) {
+                const downloads = await response.json();
+                return { success: true, data: downloads };
+            } else {
+                return { success: false, error: 'Failed to get downloads' };
             }
         } catch (error) {
             return { success: false, error: error.message };
