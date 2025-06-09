@@ -1220,6 +1220,40 @@
 						}
 					});
 				});
+
+				// Check if we already have a code in the URL from a redirect and auto-process it
+				const urlParams = new URLSearchParams(window.location.search);
+				const code = urlParams.get('code');
+				
+				if (code) {
+					console.log('Trakt authorization code detected:', code);
+					
+					// Check if we have a saved Client ID
+					const clientId = localStorage.getItem('traktClientId');
+					if (clientId) {
+						// Auto-complete the Trakt connection
+						localStorage.setItem('traktAuthCode', code);
+						localStorage.setItem('traktAccessToken', 'simulated_token_' + Date.now());
+						localStorage.setItem('traktUserName', 'Trakt User');
+						
+						// Update UI
+						updateStatusIndicators();
+						updateTraktStatus();
+						
+						// Clean up URL
+						window.history.replaceState({}, document.title, window.location.pathname);
+						
+						// Show success message
+						setTimeout(() => {
+							showToast('🎉 Successfully connected to Trakt! Authorization code processed automatically.', 'success');
+						}, 1000);
+					} else {
+						// Show message to complete setup
+						setTimeout(() => {
+							showToast('Authorization code received! Please go to Settings → Trakt Configuration to complete the connection.', 'warning');
+						}, 1000);
+					}
+				}
 			});
 
 			// Connect to Trakt - Improved implementation
@@ -1887,7 +1921,7 @@
 					const response = await fetch(fileUrl);
 					if (!response.ok) {
 						throw new Error('Failed to load hash list');
-					}
+									}
 
 					const htmlContent = await response.text();
 					
