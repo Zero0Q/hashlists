@@ -624,679 +624,214 @@
 					document.getElementById('show-auto-upgrade').checked = showPrefs.autoUpgrade || false;
 					document.getElementById('show-allow-higher-quality').checked = showPrefs.allowHigherQuality || false;
 					document.getElementById('show-delete-old').checked = showPrefs.deleteOldAfterUpgrade || false;
-					document.getElementById('show-complete-seasons').checked = showPrefs.completeSeasons !== false;
-					document.getElementById('show-next-episodes').checked = showPrefs.nextEpisodes !== false;
-					document.getElementById('show-all-seasons').checked = showPrefs.allSeasons || false;
+					document.getElementById('show-complete-seasons').checked = showPrefs.completeSeasonsPreferred || false;
+					document.getElementById('show-next-episodes').checked = showPrefs.autoAddNextEpisodes || false;
+					document.getElementById('show-all-seasons').checked = showPrefs.addAllSeasonsForNewShows || false;
 					
-					// Load show file types
-					const showFileTypes = showPrefs.fileTypes || ['web'];
-					document.getElementById('show-prefer-remux').checked = showFileTypes.includes('remux');
-					document.getElementById('show-prefer-bluray').checked = showFileTypes.includes('bluray');
-					document.getElementById('show-prefer-web').checked = showFileTypes.includes('web');
-
-					// Load global upgrade settings
-					document.getElementById('check-for-upgrades').checked = localStorage.getItem('check-for-upgrades') === 'true';
-					document.getElementById('max-upgrade-matches').value = localStorage.getItem('max-upgrade-matches') || '3';
+					// Initialize Trakt connection status
+					updateTraktStatus();
 				}
 
 				function updateStatusIndicators() {
-					const rdStatus = document.getElementById('realdebrid-status');
-					const traktStatus = document.getElementById('trakt-status');
-					
-					const rdApiKey = localStorage.getItem('rd-api-key');
-					const traktToken = localStorage.getItem('trakt-token');
-					
-					if (rdApiKey) {
-						rdStatus.textContent = 'RD: Connected';
-						rdStatus.className = 'status-indicator status-connected';
-					} else {
-						rdStatus.textContent = 'RD: Disconnected';
-						rdStatus.className = 'status-indicator status-disconnected';
-					}
-					
-					if (traktToken) {
-						traktStatus.textContent = 'Trakt: Connected';
-						traktStatus.className = 'status-indicator status-connected';
-					} else {
-						traktStatus.textContent = 'Trakt: Disconnected';
-						traktStatus.className = 'status-indicator status-disconnected';
-					}
+					updateRealDebridStatus();
+					updateTraktStatus();
 				}
 
-				// Global search functionality
-				function initializeSearch() {
-					const searchBtn = document.getElementById('search-btn');
-					const searchInput = document.getElementById('search-input');
-
-					searchBtn.addEventListener('click', performGlobalSearch);
-					searchInput.addEventListener('keypress', function(e) {
-						if (e.key === 'Enter') {
-							performGlobalSearch();
-						}
-					});
-				}
-
-				async function performGlobalSearch() {
-					const query = document.getElementById('search-input').value.trim();
-					if (!query) {
-						alert('Please enter a search term');
+				function updateRealDebridStatus() {
+					const apiKey = localStorage.getItem('rd-api-key');
+					const statusIndicator = document.getElementById('realdebrid-status');
+					
+					if (!apiKey) {
+						statusIndicator.className = 'status-indicator status-disconnected';
+						statusIndicator.innerText = 'RD: Disconnected';
 						return;
 					}
-
-					showSearchModal();
-					const resultsContainer = document.getElementById('search-results-container');
-					resultsContainer.innerHTML = '<div class="loading">Searching all hash lists...</div>';
-
-					try {
-						const results = await searchAllHashLists(query);
-						displaySearchResults(results);
-					} catch (error) {
-						console.error('Search error:', error);
-						resultsContainer.innerHTML = '<div class="loading">Search failed. Please try again.</div>';
-					}
-				}
-
-				async function searchAllHashLists(query) {
-					const searchLimit = parseInt(document.getElementById('search-limit')?.value || '50');
-					const enableRegex = document.getElementById('enable-regex')?.checked || false;
-					const results = [];
-
-					// Create search pattern
-					let searchPattern;
-					if (enableRegex) {
-						try {
-							searchPattern = new RegExp(query, 'i');
-						} catch (e) {
-							searchPattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-						}
-					} else {
-						searchPattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-					}
-
-					// Search through each hash list
-					for (const file of htmlFiles.slice(0, Math.min(htmlFiles.length, searchLimit))) {
-						try {
-							const response = await fetch(file.download_url || `https://zero0q.github.io/hashlists/${file.path}`);
-							const html = await response.text();
-							
-							// Extract iframe src and fetch content
-							const iframeMatch = html.match(/src="([^"]+)"/);
-							if (iframeMatch) {
-								const iframeSrc = iframeMatch[1];
-								
-								// Decode the hash list content
-								const hashListContent = await fetchHashListContent(iframeSrc);
-								const matches = searchHashListContent(hashListContent, searchPattern, file.path);
-								
-								if (matches.length > 0) {
-									results.push(...matches);
-								}
+					
+					apiManager.testRealDebridConnection(apiKey)
+						.then(isConnected => {
+							if (isConnected) {
+								statusIndicator.className = 'status-indicator status-connected';
+								statusIndicator.innerText = 'RD: Connected';
+							} else {
+								statusIndicator.className = 'status-indicator status-disconnected';
+								statusIndicator.innerText = 'RD: Disconnected';
 							}
-						} catch (error) {
-							console.error(`Error searching ${file.path}:`, error);
-						}
-					}
-
-					return results;
-				}
-
-				async function fetchHashListContent(iframeSrc) {
-					try {
-						// Extract the encoded content from debridmediamanager.com URL
-						const hashPart = iframeSrc.split('#')[1];
-						if (hashPart) {
-							// Try to decode the content - this might need adjustment based on actual encoding
-							try {
-								const decoded = atob(hashPart);
-								return decoded;
-							} catch (e) {
-								// If base64 doesn't work, try other decoding methods
-								console.warn('Could not decode hash content, using raw data');
-								return hashPart;
-							}
-						}
-					} catch (error) {
-						console.error('Error decoding hash list content:', error);
-					}
-					return '';
-				}
-
-				function searchHashListContent(content, pattern, source) {
-					const matches = [];
-					const lines = content.split('\n');
-					
-					for (let i = 0; i < lines.length; i++) {
-						const line = lines[i].trim();
-						if (line && pattern.test(line)) {
-							// Check if it's a magnet link or contains useful metadata
-							const isMagnet = apiManager.isMagnetLink(line);
-							const metadata = isMagnet ? apiManager.extractMetadataFromMagnet(line) : { title: line };
-							
-							matches.push({
-								title: metadata.title || line,
-								source: source,
-								lineNumber: i + 1,
-								content: line,
-								isMagnet: isMagnet,
-								quality: metadata.quality || 'Unknown',
-								size: metadata.size || 'Unknown',
-								type: metadata.type || 'Unknown'
-							});
-						}
-					}
-					
-					return matches;
-				}
-
-				function displaySearchResults(results) {
-					const container = document.getElementById('search-results-container');
-					
-					if (results.length === 0) {
-						container.innerHTML = '<div class="loading">No results found.</div>';
-						return;
-					}
-
-					const html = results.map(result => `
-						<div class="search-result-item">
-							<div class="search-result-info">
-								<div class="search-result-title">${escapeHtml(result.title)}</div>
-								<div class="search-result-source">
-									Source: ${result.source} (Line ${result.lineNumber}) | 
-									Quality: ${result.quality} | 
-									Size: ${result.size} | 
-									Type: ${result.type}
-								</div>
-							</div>
-							<div class="search-result-actions">
-								${result.isMagnet ? `<button class="btn btn-primary" onclick="addToRealDebrid('${escapeHtml(result.content)}')">Add to RD</button>` : ''}
-								<button class="btn btn-success" onclick="addToTraktWatchlist('${escapeHtml(result.title)}', '${result.type}')">Add to Trakt</button>
-							</div>
-						</div>
-					`).join('');
-
-					container.innerHTML = `
-						<div style="margin-bottom: 15px;">
-							<strong>Found ${results.length} results</strong>
-							${results.filter(r => r.isMagnet).length > 0 ? `
-								<div style="margin-top: 10px;">
-									<button class="btn btn-success" onclick="addAllToRealDebrid()">Add All Magnets to Real-Debrid</button>
-								</div>
-							` : ''}
-						</div>
-						<div class="search-results">${html}</div>
-					`;
-
-					// Store results for bulk operations
-					window.currentSearchResults = results.filter(r => r.isMagnet);
-				}
-
-				function escapeHtml(text) {
-					const div = document.createElement('div');
-					div.textContent = text;
-					return div.innerHTML;
-				}
-
-				// Modal management and settings
-				function initializeModals() {
-					const settingsModal = document.getElementById('settingsModal');
-					const searchModal = document.getElementById('searchModal');
-					const settingsBtn = document.getElementById('settings-btn');
-
-					settingsBtn.addEventListener('click', () => {
-						settingsModal.style.display = 'block';
-					});
-
-					// Close modals when clicking the X or outside
-					document.querySelectorAll('.close').forEach(closeBtn => {
-						closeBtn.addEventListener('click', function() {
-							this.closest('.modal').style.display = 'none';
+						})
+						.catch(error => {
+							console.error('Error checking Real-Debrid connection:', error);
+							statusIndicator.className = 'status-indicator status-disconnected';
+							statusIndicator.innerText = 'RD: Disconnected';
 						});
-					});
-
-					window.addEventListener('click', function(event) {
-						if (event.target.classList.contains('modal')) {
-							event.target.style.display = 'none';
-						}
-					});
 				}
 
-				function showSearchModal() {
-					document.getElementById('searchModal').style.display = 'block';
-				}
-
-				// Preference functions
-				function getMoviePreferences() {
-					const movieFileTypes = [];
-					if (document.getElementById('movie-prefer-remux').checked) movieFileTypes.push('remux');
-					if (document.getElementById('movie-prefer-bluray').checked) movieFileTypes.push('bluray');
-					if (document.getElementById('movie-prefer-web').checked) movieFileTypes.push('web');
-
-					return {
-						quality: document.getElementById('movie-quality-preference').value,
-						fileTypes: movieFileTypes,
-						hdrPreference: document.getElementById('movie-hdr-preference').value,
-						maxSize: document.getElementById('movie-max-size').value,
-						autoUpgrade: document.getElementById('movie-auto-upgrade').checked,
-						allowHigherQuality: document.getElementById('movie-allow-higher-quality').checked,
-						deleteOldAfterUpgrade: document.getElementById('movie-delete-old').checked
-					};
-				}
-
-				function getShowPreferences() {
-					const showFileTypes = [];
-					if (document.getElementById('show-prefer-remux').checked) showFileTypes.push('remux');
-					if (document.getElementById('show-prefer-bluray').checked) showFileTypes.push('bluray');
-					if (document.getElementById('show-prefer-web').checked) showFileTypes.push('web');
-
-					return {
-						quality: document.getElementById('show-quality-preference').value,
-						fileTypes: showFileTypes,
-						hdrPreference: document.getElementById('show-hdr-preference').value,
-						maxSize: document.getElementById('show-max-size').value,
-						autoUpgrade: document.getElementById('show-auto-upgrade').checked,
-						allowHigherQuality: document.getElementById('show-allow-higher-quality').checked,
-						deleteOldAfterUpgrade: document.getElementById('show-delete-old').checked,
-						completeSeasons: document.getElementById('show-complete-seasons').checked,
-						nextEpisodes: document.getElementById('show-next-episodes').checked,
-						allSeasons: document.getElementById('show-all-seasons').checked
-					};
-				}
-
-				function getUpgradePreferences(contentType = null) {
-					const globalPrefs = {
-						checkForUpgrades: document.getElementById('check-for-upgrades').checked,
-						maxUpgradeMatches: parseInt(document.getElementById('max-upgrade-matches').value) || 3
-					};
-
-					if (contentType === 'movie') {
-						return { ...globalPrefs, ...getMoviePreferences() };
-					} else if (contentType === 'tv') {
-						return { ...globalPrefs, ...getShowPreferences() };
-					} else {
-						// Return both for mixed content
-						return {
-							...globalPrefs,
-							movies: getMoviePreferences(),
-							shows: getShowPreferences()
-						};
-					}
-				}
-
-				// Quality upgrade functions
-				async function checkUpgradesNow() {
-					const rdApiKey = localStorage.getItem('rd-api-key');
-					if (!rdApiKey) {
-						alert('Please configure your Real-Debrid API key first');
-						return;
-					}
-
-					const preferences = getUpgradePreferences();
+				function updateTraktStatus() {
+					const isConnected = localStorage.getItem('trakt-connected') === 'true';
+					const statusIndicator = document.getElementById('trakt-status');
+					const connectButton = document.getElementById('trakt-connect-btn');
+					const disconnectButton = document.getElementById('trakt-disconnect-btn');
+					const traktStatusInfo = document.getElementById('trakt-status-info');
 					
-					const loadingDiv = document.createElement('div');
-					loadingDiv.innerHTML = '<div class="loading">Checking for quality upgrades...</div>';
-					loadingDiv.style.position = 'fixed';
-					loadingDiv.style.top = '50%';
-					loadingDiv.style.left = '50%';
-					loadingDiv.style.transform = 'translate(-50%, -50%)';
-					loadingDiv.style.background = 'white';
-					loadingDiv.style.padding = '20px';
-					loadingDiv.style.border = '1px solid #ccc';
-					loadingDiv.style.borderRadius = '8px';
-					loadingDiv.style.zIndex = '2000';
-					document.body.appendChild(loadingDiv);
-
-					try {
-						const results = await apiManager.checkForQualityUpgrades(rdApiKey, preferences);
+					if (isConnected) {
+						statusIndicator.className = 'status-indicator status-connected';
+						statusIndicator.innerText = 'Trakt: Connected';
+						connectButton.style.display = 'none';
+						disconnectButton.style.display = 'inline-block';
+						traktStatusInfo.innerHTML = ''; // Clear any previous error messages
+					} else {
+						statusIndicator.className = 'status-indicator status-disconnected';
+						statusIndicator.innerText = 'Trakt: Disconnected';
+						connectButton.style.display = 'inline-block';
+						disconnectButton.style.display = 'none';
 						
-						let message = `Quality upgrade check completed!\n\n`;
-						message += `Torrents checked: ${results.checkedTorrents}\n`;
-						message += `Upgrades found: ${results.upgradesFound}\n`;
-						
-						if (preferences.autoUpgrade) {
-							message += `Upgrades added: ${results.upgradesAdded}\n`;
+						// Show error message if available
+						const errorMessage = localStorage.getItem('trakt-error-message');
+						if (errorMessage) {
+							traktStatusInfo.innerHTML = `<span style="color: red;">${errorMessage}</span>`;
 						} else {
-							message += `Auto-upgrade is disabled. Enable it in settings to automatically add upgrades.\n`;
+							traktStatusInfo.innerHTML = '';
 						}
-						
-						if (results.errors.length > 0) {
-							message += `\nErrors:\n${results.errors.slice(0, 5).join('\n')}`;
-							if (results.errors.length > 5) {
-								message += `\n... and ${results.errors.length - 5} more errors`;
-							}
-						}
-						
-						alert(message);
-					} catch (error) {
-						alert(`Upgrade check failed: ${error.message}`);
-					} finally {
-						document.body.removeChild(loadingDiv);
 					}
 				}
 
-				// Tab switching function
-				function switchContentTab(type) {
+				function switchContentTab(tab) {
 					const moviesSettings = document.getElementById('movies-settings');
 					const showsSettings = document.getElementById('shows-settings');
-					const tabButtons = document.querySelectorAll('.tab-button');
-
-					// Remove active class from all tabs and content
-					tabButtons.forEach(btn => btn.classList.remove('active'));
-					moviesSettings.classList.remove('active');
-					showsSettings.classList.remove('active');
-
-					if (type === 'movies') {
+					const movieTabButton = document.querySelector('.tab-button.active');
+					const showTabButton = document.querySelector('.tab-button:not(.active)');
+					
+					if (tab === 'movies') {
 						moviesSettings.classList.add('active');
-						tabButtons[0].classList.add('active');
+						showsSettings.classList.remove('active');
+						movieTabButton.classList.add('active');
+						showTabButton.classList.remove('active');
 					} else {
+						moviesSettings.classList.remove('active');
 						showsSettings.classList.add('active');
-						tabButtons[1].classList.add('active');
+						movieTabButton.classList.remove('active');
+						showTabButton.classList.add('active');
 					}
 				}
 
-				// Enhanced Real-Debrid functions using API manager
-				async function testRealDebridConnection() {
-					const apiKey = document.getElementById('rd-api-key').value.trim();
-					if (!apiKey) {
-						alert('Please enter your Real-Debrid API key');
-						return;
-					}
-
-					const result = await apiManager.testRealDebridConnection(apiKey);
+				function updateIframeSrc() {
+					if (htmlFiles.length === 0) return;
+					if (currentIndex < 0) currentIndex = 0;
+					if (currentIndex >= htmlFiles.length) currentIndex = htmlFiles.length - 1;
 					
-					if (result.success) {
-						alert(`Connection successful! Welcome, ${result.data.username}. Premium days remaining: ${result.data.premium}`);
-					} else {
-						alert(`Connection failed: ${result.error}`);
-					}
+					const file = htmlFiles[currentIndex];
+					currentPathElement.innerText = file.path;
+					iframe.src = file.url;
 				}
 
-				function saveRealDebridSettings() {
-					const apiKey = document.getElementById('rd-api-key').value.trim();
-					
-					if (apiKey) {
-						localStorage.setItem('rd-api-key', apiKey);
-						updateStatusIndicators();
-					} else {
-						localStorage.removeItem('rd-api-key');
-						updateStatusIndicators();
-					}
+				// Event listeners
+				allHashlistsButton.addEventListener("click", function () {
+					currentIndex = -1;
+					htmlFiles = [];
+					updateIframeSrc();
+				});
 
-					// Save basic settings
-					localStorage.setItem('auto-add-movies', document.getElementById('auto-add-movies').checked);
-					localStorage.setItem('auto-add-shows', document.getElementById('auto-add-shows').checked);
-					localStorage.setItem('search-limit', document.getElementById('search-limit').value);
-					localStorage.setItem('enable-regex', document.getElementById('enable-regex').checked);
-					
-					// Save movie preferences
-					const moviePrefs = getMoviePreferences();
-					localStorage.setItem('movie-preferences', JSON.stringify(moviePrefs));
-					
-					// Save show preferences
-					const showPrefs = getShowPreferences();
-					localStorage.setItem('show-preferences', JSON.stringify(showPrefs));
+				previousButton.addEventListener("click", function () {
+					currentIndex--;
+					updateIframeSrc();
+				});
 
-					// Save global upgrade settings
-					localStorage.setItem('check-for-upgrades', document.getElementById('check-for-upgrades').checked);
-					localStorage.setItem('max-upgrade-matches', document.getElementById('max-upgrade-matches').value);
+				randomButton.addEventListener("click", function () {
+					currentIndex = Math.floor(Math.random() * htmlFiles.length);
+					updateIframeSrc();
+				});
 
-					alert('Settings saved successfully!');
-				}
+				nextButton.addEventListener("click", function () {
+					currentIndex++;
+					updateIframeSrc();
+				});
 
-				// Enhanced runAutoAdd with separate movie/show preferences
-				async function runAutoAdd() {
-					const rdApiKey = localStorage.getItem('rd-api-key');
-					const traktToken = localStorage.getItem('trakt-token');
-					
-					if (!rdApiKey || !traktToken) {
-						alert('Please configure both Real-Debrid and Trakt connections first');
-						return;
-					}
-
-					const moviePreferences = getUpgradePreferences('movie');
-					const showPreferences = getUpgradePreferences('tv');
-
-					const globalSettings = {
-						autoAddMovies: document.getElementById('auto-add-movies').checked,
-						autoAddShows: document.getElementById('auto-add-shows').checked,
-						checkForUpgrades: document.getElementById('check-for-upgrades').checked
-					};
-
-					const loadingDiv = document.createElement('div');
-					loadingDiv.innerHTML = '<div class="loading">Running auto-add process...</div>';
-					loadingDiv.style.position = 'fixed';
-					loadingDiv.style.top = '50%';
-					loadingDiv.style.left = '50%';
-					loadingDiv.style.transform = 'translate(-50%, -50%)';
-					loadingDiv.style.background = 'white';
-					loadingDiv.style.padding = '20px';
-					loadingDiv.style.border = '1px solid #ccc';
-					loadingDiv.style.borderRadius = '8px';
-					loadingDiv.style.zIndex = '2000';
-					document.body.appendChild(loadingDiv);
-
-					try {
-						const results = await apiManager.runAutoAddProcessSeparate(
-							rdApiKey, 
-							traktToken, 
-							moviePreferences, 
-							showPreferences, 
-							globalSettings
-						);
-						
-						let message = `Auto-add completed!\n\n`;
-						message += `Movies processed: ${results.moviesProcessed}\n`;
-						message += `Shows processed: ${results.showsProcessed}\n`;
-						message += `Movies added to Real-Debrid: ${results.moviesAdded}\n`;
-						message += `Show episodes added to Real-Debrid: ${results.showsAdded}\n`;
-						
-						if (globalSettings.checkForUpgrades) {
-							message += `\nUpgrade Check:\n`;
-							message += `Movie upgrades found: ${results.movieUpgradesFound}\n`;
-							message += `Show upgrades found: ${results.showUpgradesFound}\n`;
-							message += `Total upgrades added: ${results.upgradesAdded}\n`;
+				// Modal close buttons
+				document.querySelectorAll(".close").forEach(closeButton => {
+					closeButton.addEventListener("click", function () {
+						const modal = closeButton.closest(".modal");
+						if (modal) {
+							modal.style.display = "none";
 						}
-						
-						if (results.errors.length > 0) {
-							message += `\nErrors (first 5):\n${results.errors.slice(0, 5).join('\n')}`;
-							if (results.errors.length > 5) {
-								message += `\n... and ${results.errors.length - 5} more errors`;
-							}
-						}
-						
-						alert(message);
-					} catch (error) {
-						alert(`Auto-add failed: ${error.message}`);
-					} finally {
-						document.body.removeChild(loadingDiv);
+					});
+				});
+
+				// Outside click closes modal
+				window.addEventListener("click", function (event) {
+					if (event.target.classList.contains("modal")) {
+						event.target.style.display = "none";
 					}
+				});
+
+				// Initialize settings on load
+				initializeSettings();
+				
+				// Check if we're being redirected from Trakt OAuth
+				const urlParams = new URLSearchParams(window.location.search);
+				const code = urlParams.get('code');
+				const state = urlParams.get('state');
+				
+				if (code && state) {
+					handleTraktRedirect();
 				}
+			});
 
-				async function addToRealDebrid(magnet) {
-					const apiKey = localStorage.getItem('rd-api-key');
-					if (!apiKey) {
-						alert('Please configure your Real-Debrid API key first');
-						return;
-					}
-
-					const result = await apiManager.addMagnetToRealDebrid(apiKey, magnet);
-					
-					if (result.success) {
-						alert('Successfully added to Real-Debrid!');
-					} else {
-						alert(`Failed to add to Real-Debrid: ${result.error}`);
-					}
-				}
-
-				async function addAllToRealDebrid() {
-					const apiKey = localStorage.getItem('rd-api-key');
-					if (!apiKey) {
-						alert('Please configure your Real-Debrid API key first');
-						return;
-					}
-
-					if (!window.currentSearchResults || window.currentSearchResults.length === 0) {
-						alert('No magnet links to add');
-						return;
-					}
-
-					if (!confirm(`Add ${window.currentSearchResults.length} magnet links to Real-Debrid?`)) {
-						return;
-					}
-
-					let successful = 0;
-					let failed = 0;
-
-					for (const result of window.currentSearchResults) {
-						const addResult = await apiManager.addMagnetToRealDebrid(apiKey, result.content);
-						if (addResult.success) {
-							successful++;
-						} else {
-							failed++;
-						}
-						
-						// Small delay to avoid rate limiting
-						await new Promise(resolve => setTimeout(resolve, 1000));
-					}
-
-					alert(`Bulk add completed: ${successful} successful, ${failed} failed`);
-				}
-
-				// Enhanced Trakt functions
+			// Enhanced Trakt functions
 				async function connectTrakt() {
 					// For production, you'd implement proper OAuth flow
 					const clientId = prompt('Enter your Trakt Client ID (get one from https://trakt.tv/oauth/applications):');
 					if (!clientId) return;
 
-					const redirectUri = encodeURIComponent(window.location.origin);
+					const redirectUri = encodeURIComponent('https://zero0q.github.io/hashlists');
 					const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=random-state`;
 					
-					window.open(authUrl, '_blank');
+					// Open the authorization URL in a new window
+					const authWindow = window.open(authUrl, '_blank');
 					
-					const code = prompt('Please enter the authorization code from Trakt:');
-					if (code) {
-						localStorage.setItem('trakt-token', 'demo-token-' + code);
-						localStorage.setItem('trakt-client-id', clientId);
-						alert('Successfully connected to Trakt!');
-						updateStatusIndicators();
+					// Wait for the user to authorize and for the redirect to happen
+					const checkInterval = setInterval(() => {
+						if (authWindow.closed) {
+							clearInterval(checkInterval);
+							// The window was closed, assume authorization was completed
+							handleTraktRedirect();
+						}
+					}, 1000);
+				}
+
+				function handleTraktRedirect() {
+					const urlParams = new URLSearchParams(window.location.search);
+					const code = urlParams.get('code');
+					const state = urlParams.get('state');
+					
+					if (!code || !state) {
+						alert('Invalid response from Trakt. Please try again.');
+						return;
 					}
+					
+					// Store the authorization code temporarily
+					localStorage.setItem('trakt-auth-code', code);
+					localStorage.setItem('trakt-connected', 'true');
+					
+					// Clear the URL parameters for a clean interface
+					const url = new URL(window.location);
+					url.search = '';
+					window.history.replaceState({}, document.title, url.toString());
+					
+					updateTraktStatus();
+					alert('Successfully connected to Trakt! You can now use Trakt features.');
 				}
 
 				function disconnectTrakt() {
-					localStorage.removeItem('trakt-token');
-					localStorage.removeItem('trakt-client-id');
-					alert('Disconnected from Trakt');
-					updateStatusIndicators();
-				}
-
-				async function addToTraktWatchlist(title, type = 'movie') {
-					const traktToken = localStorage.getItem('trakt-token');
-					if (!traktToken) {
-						alert('Please connect to Trakt first');
-						return;
-					}
-
-					// Search for the content first
-					const searchResult = await apiManager.searchTraktContent(title, type);
+					localStorage.removeItem('trakt-access-token');
+					localStorage.removeItem('trakt-refresh-token');
+					localStorage.setItem('trakt-connected', 'false');
 					
-					if (searchResult.success && searchResult.data.length > 0) {
-						const item = searchResult.data[0];
-						const addResult = await apiManager.addToTraktWatchlist(traktToken, item[type], type === 'movie' ? 'movies' : 'shows');
-						
-						if (addResult.success) {
-							alert(`Added "${title}" to Trakt watchlist!`);
-						} else {
-							alert(`Failed to add to Trakt: ${addResult.error}`);
-						}
-					} else {
-						alert(`Could not find "${title}" on Trakt`);
-					}
+					updateStatusIndicators();
+					alert('Successfully disconnected from Trakt.');
 				}
 
-				// Make all functions globally available
-				window.initializeSettings = initializeSettings;
-				window.loadSettings = loadSettings;
-				window.updateStatusIndicators = updateStatusIndicators;
-				window.initializeSearch = initializeSearch;
-				window.initializeModals = initializeModals;
-				window.showSearchModal = showSearchModal;
-				window.performGlobalSearch = performGlobalSearch;
-				window.searchAllHashLists = searchAllHashLists;
-				window.fetchHashListContent = fetchHashListContent;
-				window.searchHashListContent = searchHashListContent;
-				window.displaySearchResults = displaySearchResults;
-				window.escapeHtml = escapeHtml;
-				window.getMoviePreferences = getMoviePreferences;
-				window.getShowPreferences = getShowPreferences;
-				window.getUpgradePreferences = getUpgradePreferences;
-				window.checkUpgradesNow = checkUpgradesNow;
-				window.switchContentTab = switchContentTab;
-				window.testRealDebridConnection = testRealDebridConnection;
-				window.saveRealDebridSettings = saveRealDebridSettings;
-				window.runAutoAdd = runAutoAdd;
-				window.addToRealDebrid = addToRealDebrid;
-				window.addAllToRealDebrid = addAllToRealDebrid;
-				window.connectTrakt = connectTrakt;
-				window.disconnectTrakt = disconnectTrakt;
-				window.addToTraktWatchlist = addToTraktWatchlist;
-
-				// Initialize components AFTER all functions are defined
-				initializeSettings();
-				initializeSearch();
-				initializeModals();
-
-				// Fetch contents of the GitHub API
-				fetch("https://api.github.com/repos/Zero0Q/hashlists/contents")
-					.then((response) => response.json())
-					.then((data) => {
-						htmlFiles = data.filter(
-							(entry) => !entry.path.endsWith("index.html")
-						);
-						const randomIndex = Math.floor(Math.random() * htmlFiles.length);
-						currentIndex = randomIndex;
-						loadPathAtIndex(currentIndex);
-					})
-					.catch((error) => {
-						console.error("Error:", error);
-					});
-
-				function loadPathAtIndex(index) {
-					const path = htmlFiles[index].path;
-					iframe.src = path;
-					currentPathElement.textContent = "https://zero0q.github.io/hashlists/"+path;
-					updateButtonStates();
+				function getUrlParameter(name) {
+					const urlParams = new URLSearchParams(window.location.search);
+					return urlParams.get(name);
 				}
-
-				function updateButtonStates() {
-					previousButton.disabled = currentIndex === 0;
-					randomButton.disabled = htmlFiles.length <= 1;
-					nextButton.disabled = currentIndex === htmlFiles.length - 1;
-				}
-
-				// Navigation buttons
-				allHashlistsButton.addEventListener("click", function () {
-					window.open("https://github.com/Zero0Q/hashlists", "_blank");
-				});
-
-				previousButton.addEventListener("click", function () {
-					if (currentIndex > 0) {
-						currentIndex--;
-						loadPathAtIndex(currentIndex);
-					}
-				});
-
-				randomButton.addEventListener("click", function () {
-					const randomIndex = Math.floor(Math.random() * htmlFiles.length);
-					currentIndex = randomIndex;
-					loadPathAtIndex(currentIndex);
-				});
-
-				nextButton.addEventListener("click", function () {
-					if (currentIndex < htmlFiles.length - 1) {
-						currentIndex++;
-						loadPathAtIndex(currentIndex);
-					}
-				});
-			});
 		</script>
 	</body>
 </html>
