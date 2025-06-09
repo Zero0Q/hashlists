@@ -1156,49 +1156,266 @@
 
 				// Button event listeners
 				allHashlistsButton.addEventListener("click", function () {
-					if (htmlFiles.length > 0) {
-						currentIndex = 0;
-						iframe.src = htmlFiles[currentIndex];
-						currentPathElement.textContent = htmlFiles[currentIndex];
-					}
+					// Show all hash lists in a comprehensive view instead of just the first one
+					showAllHashListsView();
 				});
 
-				previousButton.addEventListener("click", function () {
-					if (htmlFiles.length > 0) {
-						currentIndex = (currentIndex > 0) ? currentIndex - 1 : htmlFiles.length - 1;
-						iframe.src = htmlFiles[currentIndex];
-						currentPathElement.textContent = htmlFiles[currentIndex];
-					}
-				});
+				// Function to show all hash lists in an organized view
+				function showAllHashListsView() {
+					// Create a temporary HTML page that lists all hash lists
+					const allHashListsHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>All Hash Lists - Real-Debrid Manager</title>
+	<style>
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			margin: 0;
+			padding: 20px;
+			background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+			min-height: 100vh;
+		}
+		.container {
+			max-width: 1200px;
+			margin: 0 auto;
+		}
+		.header {
+			text-align: center;
+			color: white;
+			margin-bottom: 30px;
+		}
+		.header h1 {
+			font-size: 2.5em;
+			margin-bottom: 10px;
+			text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+		}
+		.stats {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+			gap: 20px;
+			margin-bottom: 30px;
+		}
+		.stat-card {
+			background: rgba(255,255,255,0.1);
+			backdrop-filter: blur(10px);
+			border-radius: 12px;
+			padding: 20px;
+			text-align: center;
+			color: white;
+			border: 1px solid rgba(255,255,255,0.2);
+		}
+		.stat-number {
+			font-size: 2em;
+			font-weight: bold;
+			color: #4CAF50;
+		}
+		.search-box {
+			margin-bottom: 20px;
+			text-align: center;
+		}
+		.search-box input {
+			width: 400px;
+			padding: 12px 20px;
+			font-size: 16px;
+			border: none;
+			border-radius: 25px;
+			outline: none;
+			background: rgba(255,255,255,0.9);
+		}
+		.grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+			gap: 15px;
+		}
+		.hash-list-item {
+			background: rgba(255,255,255,0.95);
+			border-radius: 10px;
+			padding: 15px;
+			transition: all 0.3s ease;
+			cursor: pointer;
+			border: 1px solid rgba(255,255,255,0.3);
+		}
+		.hash-list-item:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+			background: white;
+		}
+		.hash-list-title {
+			font-weight: bold;
+			font-size: 14px;
+			color: #333;
+			margin-bottom: 8px;
+			word-break: break-all;
+		}
+		.hash-list-meta {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			font-size: 12px;
+			color: #666;
+		}
+		.hash-list-actions {
+			display: flex;
+			gap: 5px;
+			margin-top: 10px;
+		}
+		.btn {
+			padding: 5px 10px;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 11px;
+			text-decoration: none;
+			display: inline-block;
+		}
+		.btn-primary { background: #007bff; color: white; }
+		.btn-success { background: #28a745; color: white; }
+		.btn-info { background: #17a2b8; color: white; }
+		.no-results {
+			text-align: center;
+			color: white;
+			font-size: 18px;
+			margin-top: 50px;
+		}
+		.loading {
+			text-align: center;
+			color: white;
+			font-size: 18px;
+			margin-top: 50px;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<h1>📚 All Hash Lists</h1>
+			<p>Complete collection of Real-Debrid hash lists</p>
+		</div>
+		
+		<div class="stats">
+			<div class="stat-card">
+				<div class="stat-number" id="total-lists">${htmlFiles.length}</div>
+				<div>Total Hash Lists</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-number" id="visible-lists">${htmlFiles.length}</div>
+				<div>Visible Lists</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-number">∞</div>
+				<div>Torrents Available</div>
+			</div>
+		</div>
 
-				randomButton.addEventListener("click", function () {
-					if (htmlFiles.length > 0) {
-						currentIndex = Math.floor(Math.random() * htmlFiles.length);
-						iframe.src = htmlFiles[currentIndex];
-						currentPathElement.textContent = htmlFiles[currentIndex];
-					}
-				});
+		<div class="search-box">
+			<input type="text" id="search-input" placeholder="🔍 Search hash lists..." onkeyup="filterLists()">
+		</div>
 
-				nextButton.addEventListener("click", function () {
-					if (htmlFiles.length > 0) {
-						currentIndex = (currentIndex < htmlFiles.length - 1) ? currentIndex + 1 : 0;
-						iframe.src = htmlFiles[currentIndex];
-						currentPathElement.textContent = htmlFiles[currentIndex];
-					}
-				});
+		<div class="grid" id="hash-list-grid">
+			${htmlFiles.map((file, index) => `
+				<div class="hash-list-item" data-file="${file}">
+					<div class="hash-list-title">${file}</div>
+					<div class="hash-list-meta">
+						<span>#${index + 1}</span>
+						<span>Ready</span>
+					</div>
+					<div class="hash-list-actions">
+						<button class="btn btn-primary" onclick="openHashList('${file}')">📂 Open</button>
+						<button class="btn btn-success" onclick="loadInParent('${file}')">🚀 Load</button>
+						<button class="btn btn-info" onclick="showSimpleView('${file}')">📄 Simple</button>
+					</div>
+				</div>
+			`).join('')}
+		</div>
+	</div>
 
-				// Search button event listener
-				document.getElementById("search-btn").addEventListener("click", function () {
-					const query = document.getElementById("search-input").value.trim();
-					if (query) {
-						openSearchModal(query);
-					}
-				});
+	<script>
+		function filterLists() {
+			const searchTerm = document.getElementById('search-input').value.toLowerCase();
+			const items = document.querySelectorAll('.hash-list-item');
+			let visibleCount = 0;
+			
+			items.forEach(item => {
+				const title = item.querySelector('.hash-list-title').textContent.toLowerCase();
+				if (title.includes(searchTerm)) {
+					item.style.display = 'block';
+					visibleCount++;
+				} else {
+					item.style.display = 'none';
+				}
+			});
+			
+			document.getElementById('visible-lists').textContent = visibleCount;
+		}
 
-				// Settings button event listener
-				document.getElementById("settings-btn").addEventListener("click", function () {
-					document.getElementById("settingsModal").style.display = "block";
-				});
+		function openHashList(file) {
+			// Open in new tab
+			window.open(file, '_blank');
+		}
+
+		function loadInParent(file) {
+			// Send message to parent window to load this hash list
+			if (window.parent && window.parent !== window) {
+				window.parent.postMessage({
+					action: 'loadHashList',
+					file: file
+				}, '*');
+			} else {
+				// Fallback: redirect current window
+				window.location.href = file;
+			}
+		}
+
+		function showSimpleView(file) {
+			// Send message to parent window to show simple view
+			if (window.parent && window.parent !== window) {
+				window.parent.postMessage({
+					action: 'showSimpleView',
+					file: file
+				}, '*');
+			}
+		}
+
+		// Add click handler to items for easy loading
+		document.querySelectorAll('.hash-list-item').forEach(item => {
+			item.addEventListener('click', function(e) {
+				if (e.target.tagName !== 'BUTTON') {
+					const file = this.dataset.file;
+					loadInParent(file);
+				}
+			});
+		});
+	</script>
+</body>
+</html>
+					`;
+
+					// Create a blob URL for the HTML content
+					const blob = new Blob([allHashListsHTML], { type: 'text/html' });
+					const url = URL.createObjectURL(blob);
+					
+					// Load it in the iframe
+					iframe.src = url;
+					currentPathElement.textContent = `All Hash Lists (${htmlFiles.length} total)`;
+					
+					// Add message listener to handle messages from the iframe
+					window.addEventListener('message', function(event) {
+						if (event.data.action === 'loadHashList') {
+							const fileIndex = htmlFiles.indexOf(event.data.file);
+							if (fileIndex !== -1) {
+								currentIndex = fileIndex;
+								iframe.src = event.data.file;
+								currentPathElement.textContent = `${event.data.file} (${fileIndex + 1} of ${htmlFiles.length})`;
+							}
+						} else if (event.data.action === 'showSimpleView') {
+							// Show simple view for the selected file
+							document.getElementById('simpleViewerModal').style.display = 'block';
+							loadSimpleView(event.data.file);
+						}
+					});
+				}
 
 				// Close modal event listeners
 				const closeModalButtons = document.querySelectorAll(".close");
