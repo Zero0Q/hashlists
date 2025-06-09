@@ -7,10 +7,75 @@ class APIManager {
         // Load Trakt Client ID from localStorage or use empty string
         this.traktClientId = localStorage.getItem('traktClientId') || '';
         this.traktAccessToken = null;
-        this.corsProxy = 'https://corsproxy.io/?'; // CORS proxy for API calls
+        
+        // Multiple CORS proxy services with fallback
+        this.corsProxies = [
+            'https://api.allorigins.win/raw?url=',
+            'https://cors-anywhere.herokuapp.com/',
+            'https://thingproxy.freeboard.io/fetch/',
+            'https://corsproxy.org/?',
+            'https://cors.eu.org/',
+            'https://yacdn.org/proxy/'
+        ];
+        this.currentProxyIndex = 0;
+        this.corsProxy = this.corsProxies[this.currentProxyIndex];
         
         // Quality hierarchy for upgrades (higher index = better quality)
         this.qualityHierarchy = ['480p', '720p', '1080p', '2160p', '4K', 'UHD'];
+    }
+
+    // Method to try the next CORS proxy when current one fails
+    async tryNextProxy() {
+        this.currentProxyIndex = (this.currentProxyIndex + 1) % this.corsProxies.length;
+        this.corsProxy = this.corsProxies[this.currentProxyIndex];
+        console.log(`Switching to CORS proxy: ${this.corsProxy}`);
+    }
+
+    // Enhanced fetch method with automatic proxy fallback
+    async fetchWithFallback(url, options = {}, maxRetries = 3) {
+        let lastError = null;
+        const originalProxyIndex = this.currentProxyIndex;
+        
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const proxyUrl = `${this.corsProxy}${encodeURIComponent(url)}`;
+                console.log(`Attempt ${attempt + 1}: Using proxy ${this.corsProxy}`);
+                
+                const response = await fetch(proxyUrl, {
+                    ...options,
+                    headers: {
+                        ...options.headers,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                // If response is ok, return it
+                if (response.ok) {
+                    return response;
+                }
+                
+                // If response indicates CORS/proxy issue, try next proxy
+                if (response.status >= 400) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return response;
+            } catch (error) {
+                console.error(`Proxy ${this.corsProxy} failed:`, error.message);
+                lastError = error;
+                
+                // Try next proxy for next attempt
+                if (attempt < maxRetries - 1) {
+                    await this.tryNextProxy();
+                }
+            }
+        }
+        
+        // Reset to original proxy if all failed
+        this.currentProxyIndex = originalProxyIndex;
+        this.corsProxy = this.corsProxies[this.currentProxyIndex];
+        
+        throw new Error(`All CORS proxies failed. Last error: ${lastError?.message || 'Unknown error'}`);
     }
 
     // Method to update the client ID when it's saved
@@ -21,7 +86,7 @@ class APIManager {
     // Real-Debrid Methods
     async testRealDebridConnection(apiKey) {
         try {
-            const response = await fetch(`${this.corsProxy}${this.rdBaseUrl}/user`, {
+            const response = await this.fetchWithFallback(`${this.rdBaseUrl}/user`, {
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json'
@@ -42,7 +107,7 @@ class APIManager {
     async addMagnetToRealDebrid(apiKey, magnetLink) {
         try {
             // First, add the magnet
-            const addResponse = await fetch(`${this.corsProxy}${this.rdBaseUrl}/torrents/addMagnet`, {
+            const addResponse = await this.fetchWithFallback(`${this.rdBaseUrl}/torrents/addMagnet`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
@@ -71,7 +136,7 @@ class APIManager {
     async selectAllFiles(apiKey, torrentId) {
         try {
             // Get torrent info to select all files
-            const infoResponse = await fetch(`${this.corsProxy}${this.rdBaseUrl}/torrents/info/${torrentId}`, {
+            const infoResponse = await this.fetchWithFallback(`${this.rdBaseUrl}/torrents/info/${torrentId}`, {
                 headers: {
                     'Authorization': `Bearer ${apiKey}`
                 }
@@ -82,7 +147,7 @@ class APIManager {
                 const fileIds = torrentInfo.files.map((_, index) => index + 1).join(',');
                 
                 // Select all files
-                await fetch(`${this.corsProxy}${this.rdBaseUrl}/torrents/selectFiles/${torrentId}`, {
+                await this.fetchWithFallback(`${this.rdBaseUrl}/torrents/selectFiles/${torrentId}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${apiKey}`,
@@ -98,7 +163,7 @@ class APIManager {
 
     async getRealDebridTorrents(apiKey) {
         try {
-            const response = await fetch(`${this.corsProxy}${this.rdBaseUrl}/torrents`, {
+            const response = await this.fetchWithFallback(`${this.rdBaseUrl}/torrents`, {
                 headers: {
                     'Authorization': `Bearer ${apiKey}`
                 }
@@ -117,7 +182,7 @@ class APIManager {
 
     async getRealDebridDownloads(apiKey, limit = 50) {
         try {
-            const response = await fetch(`${this.corsProxy}${this.rdBaseUrl}/downloads?limit=${limit}`, {
+            const response = await this.fetchWithFallback(`${this.rdBaseUrl}/downloads?limit=${limit}`, {
                 headers: {
                     'Authorization': `Bearer ${apiKey}`
                 }
@@ -137,7 +202,7 @@ class APIManager {
     // Trakt Methods
     async getTraktWatchlist(accessToken, type = 'movies') {
         try {
-            const response = await fetch(`${this.corsProxy}${this.traktBaseUrl}/sync/watchlist/${type}`, {
+            const response = await this.fetchWithFallback(`${this.traktBaseUrl}/sync/watchlist/${type}`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'trakt-api-version': '2',
@@ -163,7 +228,7 @@ class APIManager {
                 [type]: [item]
             };
 
-            const response = await fetch(`${this.corsProxy}${this.traktBaseUrl}/sync/watchlist`, {
+            const response = await this.fetchWithFallback(`${this.traktBaseUrl}/sync/watchlist`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -187,7 +252,7 @@ class APIManager {
 
     async searchTraktContent(query, type = 'movie') {
         try {
-            const response = await fetch(`${this.corsProxy}${this.traktBaseUrl}/search/${type}?query=${encodeURIComponent(query)}`, {
+            const response = await this.fetchWithFallback(`${this.traktBaseUrl}/search/${type}?query=${encodeURIComponent(query)}`, {
                 headers: {
                     'trakt-api-version': '2',
                     'trakt-api-key': this.traktClientId,
@@ -470,7 +535,7 @@ class APIManager {
 
     async deleteRealDebridTorrent(apiKey, torrentId) {
         try {
-            const response = await fetch(`${this.corsProxy}${this.rdBaseUrl}/torrents/delete/${torrentId}`, {
+            const response = await this.fetchWithFallback(`${this.rdBaseUrl}/torrents/delete/${torrentId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${apiKey}`
