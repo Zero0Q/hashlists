@@ -540,7 +540,6 @@
 			</div>
 
 			<button id="settings-btn">⚙️ Settings</button>
-			<button id="library-btn">📚 Library</button>
 			<button id="allHashlistsButton">All hash lists</button>
 			<button id="previousButton">Previous hash list</button>
 			<button id="randomButton">Random hash list</button>
@@ -797,17 +796,6 @@
 			</div>
 		</div>
 
-		<!-- Library Modal -->
-		<div id="libraryModal" class="modal">
-			<div class="modal-content">
-				<span class="close">&times;</span>
-				<h2>All Hash Lists</h2>
-				<div id="library-content">
-					<div class="loading">Loading hash lists...</div>
-				</div>
-			</div>
-		</div>
-
 		<!-- Real-Debrid Library Modal -->
 		<div id="rdLibraryModal" class="modal">
 			<div class="modal-content">
@@ -1023,11 +1011,6 @@
 				// Settings button event listener
 				document.getElementById("settings-btn").addEventListener("click", function () {
 					document.getElementById("settingsModal").style.display = "block";
-				});
-
-				// Library button event listener
-				document.getElementById("library-btn").addEventListener("click", function () {
-					openLibraryModal();
 				});
 
 				// Close modal event listeners
@@ -1316,65 +1299,36 @@
 					});
 			}
 
-			// Refresh Real-Debrid library
+			// Show Real-Debrid library
 			async function showRealDebridLibrary() {
-				if (!apiManager.rdApi || !apiManager.rdApi.token) {
-					alert('Please configure Real-Debrid API token first');
+				const rdApiKey = localStorage.getItem('rd-api-key');
+				if (!rdApiKey) {
+					showToast('Please configure Real-Debrid API key first', 'error');
 					return;
 				}
 
-				// Show loading state
-				const container = document.getElementById('rd-library-container');
-				if (!container) {
-					createRealDebridLibraryContainer();
-				}
-				
-				document.getElementById('rd-library-container').style.display = 'block';
-				document.getElementById('rd-library-content').innerHTML = '<div class="loading">Loading Real-Debrid library...</div>';
+				// Show the Real-Debrid library modal
+				document.getElementById("rdLibraryModal").style.display = "block";
+				document.getElementById("rd-library-content").innerHTML = '<div class="loading">Loading your Real-Debrid library...</div>';
 
 				try {
-					// Fetch torrents from Real-Debrid
-					const torrents = await apiManager.rdApi.getTorrents();
+					// Fetch torrents from Real-Debrid API
+					const response = await fetch('https://api.real-debrid.com/rest/1.0/torrents', {
+						headers: {
+							'Authorization': 'Bearer ' + rdApiKey
+						}
+					});
+
+					if (!response.ok) {
+						throw new Error('Failed to fetch torrents');
+					}
+
+					const torrents = await response.json();
 					displayRealDebridLibrary(torrents);
 				} catch (error) {
 					console.error('Error fetching Real-Debrid library:', error);
 					document.getElementById('rd-library-content').innerHTML = `<div class="error">Error loading library: ${error.message}</div>`;
 				}
-			}
-
-			function createRealDebridLibraryContainer() {
-				const container = document.createElement('div');
-				container.id = 'rd-library-container';
-				container.className = 'modal-overlay';
-				container.style.display = 'none';
-				container.innerHTML = `
-					<div class="modal-content" style="max-width: 1200px; height: 80vh;">
-						<div class="modal-header">
-							<h2>Real-Debrid Library</h2>
-							<button class="close-btn" onclick="closeRealDebridLibrary()">&times;</button>
-						</div>
-						<div class="rd-library-controls">
-							<div class="form-group">
-								<input type="text" id="rd-search" placeholder="Search library..." onkeyup="filterRealDebridLibrary()">
-								<select id="rd-status-filter" onchange="filterRealDebridLibrary()">
-									<option value="">All Status</option>
-									<option value="downloading">Downloading</option>
-									<option value="downloaded">Downloaded</option>
-									<option value="error">Error</option>
-									<option value="virus">Virus</option>
-									<option value="magnet_error">Magnet Error</option>
-									<option value="magnet_conversion">Converting</option>
-									<option value="waiting_files_selection">Waiting Selection</option>
-								</select>
-								<button onclick="refreshRealDebridLibrary()" class="btn btn-primary">Refresh</button>
-								<button onclick="selectAllRdItems()" class="btn btn-secondary">Select All</button>
-								<button onclick="deleteSelectedRdItems()" class="btn btn-danger">Delete Selected</button>
-							</div>
-						</div>
-						<div id="rd-library-content" style="max-height: calc(80vh - 200px); overflow-y: auto;"></div>
-					</div>
-				`;
-				document.body.appendChild(container);
 			}
 
 			function displayRealDebridLibrary(torrents) {
@@ -1432,6 +1386,55 @@
 				content.innerHTML = html;
 			}
 
+			// Real-Debrid library helper functions
+			function refreshRealDebridLibrary() {
+				showRealDebridLibrary();
+			}
+
+			function filterLibrary() {
+				const typeFilter = document.getElementById('rd-library-filter').value;
+				const items = document.querySelectorAll('.rd-library-item');
+
+				items.forEach(item => {
+					const title = item.querySelector('.rd-library-title').textContent.toLowerCase();
+					let matchesType = true;
+
+					if (typeFilter !== 'all') {
+						const fileType = getFileType(title);
+						matchesType = fileType === typeFilter;
+					}
+
+					item.style.display = matchesType ? 'block' : 'none';
+				});
+			}
+
+			function sortLibrary() {
+				// Implementation for sorting would go here
+				showToast('Sort functionality coming soon', 'info');
+			}
+
+			function downloadSelected() {
+				const selected = Array.from(document.querySelectorAll('.rd-item-select:checked'));
+				if (selected.length === 0) {
+					showToast('No items selected', 'error');
+					return;
+				}
+				showToast('Download functionality coming soon', 'info');
+			}
+
+			function deleteSelected() {
+				const selected = Array.from(document.querySelectorAll('.rd-item-select:checked'));
+				if (selected.length === 0) {
+					showToast('No items selected', 'error');
+					return;
+				}
+				
+				if (confirm(`Delete ${selected.length} selected torrent(s)?`)) {
+					showToast('Delete functionality coming soon', 'info');
+				}
+			}
+
+			// Helper functions for Real-Debrid library
 			function getFileType(filename) {
 				const ext = filename.split('.').pop().toLowerCase();
 				const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'webm'];
@@ -1452,184 +1455,18 @@
 				return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 			}
 
-			function closeRealDebridLibrary() {
-				document.getElementById('rd-library-container').style.display = 'none';
+			// Placeholder functions for Real-Debrid torrent actions
+			function downloadRdTorrent(id) {
+				showToast('Download functionality coming soon', 'info');
 			}
 
-			async function refreshRealDebridLibrary() {
-				await showRealDebridLibrary();
+			function selectRdFiles(id) {
+				showToast('File selection functionality coming soon', 'info');
 			}
 
-			function filterRealDebridLibrary() {
-				const search = document.getElementById('rd-search').value.toLowerCase();
-				const statusFilter = document.getElementById('rd-status-filter').value;
-				const items = document.querySelectorAll('.rd-library-item');
-
-				items.forEach(item => {
-					const title = item.querySelector('.rd-library-title').textContent.toLowerCase();
-					const status = item.dataset.status;
-					
-					const matchesSearch = !search || title.includes(search);
-					const matchesStatus = !statusFilter || status === statusFilter;
-					
-					item.style.display = matchesSearch && matchesStatus ? 'block' : 'none';
-				});
-			}
-
-			function selectAllRdItems() {
-				const checkboxes = document.querySelectorAll('.rd-item-select');
-				const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-				checkboxes.forEach(cb => cb.checked = !allChecked);
-			}
-
-			async function deleteSelectedRdItems() {
-				const selected = Array.from(document.querySelectorAll('.rd-item-select:checked')).map(cb => cb.value);
-				if (selected.length === 0) {
-					alert('No items selected');
-					return;
-				}
-
-				if (!confirm(`Delete ${selected.length} selected torrent(s)?`)) return;
-
-				try {
-					for (const id of selected) {
-						await apiManager.rdApi.deleteTorrent(id);
-					}
-					await refreshRealDebridLibrary();
-					showNotification(`Deleted ${selected.length} torrent(s)`, 'success');
-				} catch (error) {
-					console.error('Error deleting torrents:', error);
-					showNotification('Error deleting torrents: ' + error.message, 'error');
-				}
-			}
-
-			async function deleteRdTorrent(id) {
-				if (!confirm('Delete this torrent?')) return;
-
-				try {
-					await apiManager.rdApi.deleteTorrent(id);
-					await refreshRealDebridLibrary();
-					showNotification('Torrent deleted', 'success');
-				} catch (error) {
-					console.error('Error deleting torrent:', error);
-					showNotification('Error deleting torrent: ' + error.message, 'error');
-				}
-			}
-
-			async function downloadRdTorrent(id) {
-				try {
-					const torrentInfo = await apiManager.rdApi.getTorrentInfo(id);
-					if (torrentInfo.links && torrentInfo.links.length > 0) {
-						// Create download links modal
-						showRdDownloadLinks(torrentInfo);
-					} else {
-						showNotification('No download links available', 'warning');
-					}
-				} catch (error) {
-					console.error('Error getting download links:', error);
-					showNotification('Error getting download links: ' + error.message, 'error');
-				}
-			}
-
-			function showRdDownloadLinks(torrentInfo) {
-				const modal = document.createElement('div');
-				modal.className = 'modal-overlay';
-				modal.innerHTML = `
-					<div class="modal-content">
-						<div class="modal-header">
-							<h3>Download Links - ${torrentInfo.filename}</h3>
-							<button class="close-btn" onclick="this.closest('.modal-overlay').remove()">&times;</button>
-						</div>
-						<div class="modal-body">
-							${torrentInfo.links.map((link, index) => `
-								<div class="download-link-item" style="margin-bottom: 10px; padding: 10px; background: #2a2a2a; border-radius: 4px;">
-									<div style="margin-bottom: 5px;"><strong>${torrentInfo.files[index]?.path || 'File ' + (index + 1)}</strong></div>
-									<div style="margin-bottom: 5px;">Size: ${formatBytes(torrentInfo.files[index]?.bytes || 0)}</div>
-									<button onclick="window.open('${link}', '_blank')" class="btn btn-primary">Download</button>
-									<button onclick="copyToClipboard('${link}')" class="btn btn-secondary">Copy Link</button>
-								</div>
-							`).join('')}
-						</div>
-					</div>
-				`;
-				document.body.appendChild(modal);
-			}
-
-			async function selectRdFiles(id) {
-				try {
-					const torrentInfo = await apiManager.rdApi.getTorrentInfo(id);
-					showRdFileSelector(id, torrentInfo);
-				} catch (error) {
-					console.error('Error getting torrent info:', error);
-					showNotification('Error getting torrent info: ' + error.message, 'error');
-				}
-			}
-
-			function showRdFileSelector(torrentId, torrentInfo) {
-				const modal = document.createElement('div');
-				modal.className = 'modal-overlay';
-				modal.innerHTML = `
-					<div class="modal-content">
-						<div class="modal-header">
-							<h3>Select Files - ${torrentInfo.filename}</h3>
-							<button class="close-btn" onclick="this.closest('.modal-overlay').remove()">&times;</button>
-						</div>
-						<div class="modal-body">
-							<div style="margin-bottom: 15px;">
-								<button onclick="selectAllFiles()" class="btn btn-secondary">Select All</button>
-								<button onclick="selectVideoFiles()" class="btn btn-secondary">Video Files Only</button>
-							</div>
-							<div id="file-selector">
-								${torrentInfo.files.map((file, index) => `
-									<div class="file-selector-item" style="margin-bottom: 8px; padding: 8px; background: #2a2a2a; border-radius: 4px;">
-										<label style="display: flex; align-items: center; cursor: pointer;">
-											<input type="checkbox" value="${file.id}" style="margin-right: 10px;">
-											<div>
-												<div><strong>${file.path}</strong></div>
-												<div style="font-size: 12px; color: #999;">${formatBytes(file.bytes)}</div>
-											</div>
-										</label>
-									</div>
-								`).join('')}
-							</div>
-							<div style="margin-top: 15px; text-align: right;">
-								<button onclick="this.closest('.modal-overlay').remove()" class="btn btn-secondary">Cancel</button>
-								<button onclick="confirmFileSelection('${torrentId}')" class="btn btn-primary">Start Download</button>
-							</div>
-						</div>
-					</div>
-				`;
-				document.body.appendChild(modal);
-			}
-
-			function selectAllFiles() {
-				document.querySelectorAll('#file-selector input[type="checkbox"]').forEach(cb => cb.checked = true);
-			}
-
-			function selectVideoFiles() {
-				document.querySelectorAll('#file-selector input[type="checkbox"]').forEach(cb => {
-					const label = cb.closest('label').textContent;
-					const ext = label.split('.').pop().toLowerCase();
-					const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'webm'];
-					cb.checked = videoExts.includes(ext);
-				});
-			}
-
-			async function confirmFileSelection(torrentId) {
-				const selected = Array.from(document.querySelectorAll('#file-selector input[type="checkbox"]:checked')).map(cb => cb.value);
-				if (selected.length === 0) {
-					alert('Please select at least one file');
-					return;
-				}
-
-				try {
-					await apiManager.rdApi.selectFiles(torrentId, selected.join(','));
-					document.querySelector('.modal-overlay').remove();
-					await refreshRealDebridLibrary();
-					showNotification('Files selected for download', 'success');
-				} catch (error) {
-					console.error('Error selecting files:', error);
-					showNotification('Error selecting files: ' + error.message, 'error');
+			function deleteRdTorrent(id) {
+				if (confirm('Delete this torrent?')) {
+					showToast('Delete functionality coming soon', 'info');
 				}
 			}
 
@@ -1638,10 +1475,41 @@
 				const toastContainer = document.getElementById("toast-container") || createToastContainer();
 				const toast = document.createElement("div");
 				toast.className = `toast toast-${type}`;
-				toast.innerText = message;
+				toast.innerHTML = message;
+
+				const toastId = 'toast-' + Date.now();
+				toast.id = toastId;
 
 				if (persistent) {
 					toast.classList.add("toast-persistent");
+				}
+
+				// Add toast styles if they don't exist
+				if (!document.getElementById('toast-styles')) {
+					const style = document.createElement('style');
+					style.id = 'toast-styles';
+					style.textContent = `
+						#toast-container {
+							position: fixed;
+							top: 20px;
+							right: 20px;
+							z-index: 10000;
+						}
+						.toast {
+							background: #333;
+							color: white;
+							padding: 12px 16px;
+							margin-bottom: 10px;
+							border-radius: 4px;
+							min-width: 250px;
+							box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+						}
+						.toast-success { background: #28a745; }
+						.toast-error { background: #dc3545; }
+						.toast-warning { background: #ffc107; color: #000; }
+						.toast-info { background: #17a2b8; }
+					`;
+					document.head.appendChild(style);
 				}
 
 				toastContainer.appendChild(toast);
@@ -1649,9 +1517,13 @@
 				// Auto-remove toast after 3 seconds
 				if (!persistent) {
 					setTimeout(() => {
-						toast.remove();
+						if (toast.parentNode) {
+							toast.remove();
+						}
 					}, 3000);
 				}
+
+				return toastId;
 			}
 
 			// Create toast container if it doesn't exist
@@ -1663,327 +1535,22 @@
 			}
 
 			// Close toast notification
-			function closeToast(toastElement) {
-				if (toastElement) {
-					toastElement.remove();
+			function closeToast(toastId) {
+				const toast = document.getElementById(toastId);
+				if (toast) {
+					toast.remove();
 				}
 			}
 
-			// Show Real-Debrid library
-			async function showRealDebridLibrary() {
-				if (!apiManager.rdApi || !apiManager.rdApi.token) {
-					alert('Please configure Real-Debrid API token first');
-					return;
-				}
-
-				// Show loading state
-				const container = document.getElementById('rd-library-container');
-				if (!container) {
-					createRealDebridLibraryContainer();
-				}
+			// Content tab switching function
+			function switchContentTab(tabName) {
+				// Remove active class from all tabs and content
+				document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+				document.querySelectorAll('.content-settings').forEach(content => content.classList.remove('active'));
 				
-				document.getElementById('rd-library-container').style.display = 'block';
-				document.getElementById('rd-library-content').innerHTML = '<div class="loading">Loading Real-Debrid library...</div>';
-
-				try {
-					// Fetch torrents from Real-Debrid
-					const torrents = await apiManager.rdApi.getTorrents();
-					displayRealDebridLibrary(torrents);
-				} catch (error) {
-					console.error('Error fetching Real-Debrid library:', error);
-					document.getElementById('rd-library-content').innerHTML = `<div class="error">Error loading library: ${error.message}</div>`;
-				}
-			}
-
-			function createRealDebridLibraryContainer() {
-				const container = document.createElement('div');
-				container.id = 'rd-library-container';
-				container.className = 'modal-overlay';
-				container.style.display = 'none';
-				container.innerHTML = `
-					<div class="modal-content" style="max-width: 1200px; height: 80vh;">
-						<div class="modal-header">
-							<h2>Real-Debrid Library</h2>
-							<button class="close-btn" onclick="closeRealDebridLibrary()">&times;</button>
-						</div>
-						<div class="rd-library-controls">
-							<div class="form-group">
-								<input type="text" id="rd-search" placeholder="Search library..." onkeyup="filterRealDebridLibrary()">
-								<select id="rd-status-filter" onchange="filterRealDebridLibrary()">
-									<option value="">All Status</option>
-									<option value="downloading">Downloading</option>
-									<option value="downloaded">Downloaded</option>
-									<option value="error">Error</option>
-									<option value="virus">Virus</option>
-									<option value="magnet_error">Magnet Error</option>
-									<option value="magnet_conversion">Converting</option>
-									<option value="waiting_files_selection">Waiting Selection</option>
-								</select>
-								<button onclick="refreshRealDebridLibrary()" class="btn btn-primary">Refresh</button>
-								<button onclick="selectAllRdItems()" class="btn btn-secondary">Select All</button>
-								<button onclick="deleteSelectedRdItems()" class="btn btn-danger">Delete Selected</button>
-							</div>
-						</div>
-						<div id="rd-library-content" style="max-height: calc(80vh - 200px); overflow-y: auto;"></div>
-					</div>
-				`;
-				document.body.appendChild(container);
-			}
-
-			function displayRealDebridLibrary(torrents) {
-				const content = document.getElementById('rd-library-content');
-				
-				if (!torrents || torrents.length === 0) {
-					content.innerHTML = '<div class="no-results">No torrents found in your Real-Debrid library</div>';
-					return;
-				}
-
-				// Sort torrents by date (newest first)
-				torrents.sort((a, b) => new Date(b.added) - new Date(a.added));
-
-				let html = '';
-				torrents.forEach(torrent => {
-					const fileType = getFileType(torrent.filename);
-					const statusClass = torrent.status.replace(/\s+/g, '-').toLowerCase();
-					const progress = torrent.progress || 0;
-					const size = formatBytes(torrent.bytes);
-					const added = new Date(torrent.added).toLocaleDateString();
-
-					html += `
-						<div class="rd-library-item" data-id="${torrent.id}" data-status="${torrent.status}">
-							<div class="rd-library-header">
-								<input type="checkbox" class="rd-item-select" value="${torrent.id}">
-								<div class="rd-library-title">${torrent.filename}</div>
-								<div class="rd-library-actions">
-									<span class="rd-file-type ${fileType}">${fileType}</span>
-									${torrent.status === 'downloaded' ? `<button onclick="downloadRdTorrent('${torrent.id}')" class="btn btn-sm btn-success">Download</button>` : ''}
-									${torrent.status === 'waiting_files_selection' ? `<button onclick="selectRdFiles('${torrent.id}')" class="btn btn-sm btn-warning">Select Files</button>` : ''}
-									<button onclick="deleteRdTorrent('${torrent.id}')" class="btn btn-sm btn-danger">Delete</button>
-								</div>
-							</div>
-							<div class="rd-library-info">
-								<div><strong>Status:</strong> <span class="status-${statusClass}">${torrent.status}</span></div>
-								<div><strong>Size:</strong> ${size}</div>
-								<div><strong>Added:</strong> ${added}</div>
-							</div>
-							<div class="rd-library-meta">
-								<span>ID: ${torrent.id}</span>
-								${torrent.host ? `<span>Host: ${torrent.host}</span>` : ''}
-								${torrent.split ? `<span>Split: ${torrent.split}</span>` : ''}
-								${torrent.speed ? `<span>Speed: ${formatBytes(torrent.speed)}/s</span>` : ''}
-								${torrent.seeders ? `<span>Seeders: ${torrent.seeders}</span>` : ''}
-							</div>
-							${progress > 0 ? `
-								<div class="rd-progress-bar">
-									<div class="rd-progress-fill" style="width: ${progress}%"></div>
-								</div>
-							` : ''}
-						</div>
-					`;
-				});
-
-				content.innerHTML = html;
-			}
-
-			function getFileType(filename) {
-				const ext = filename.split('.').pop().toLowerCase();
-				const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'webm'];
-				const audioExts = ['mp3', 'flac', 'wav', 'aac', 'm4a', 'ogg'];
-				const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz'];
-				
-				if (videoExts.includes(ext)) return 'video';
-				if (audioExts.includes(ext)) return 'audio';
-				if (archiveExts.includes(ext)) return 'archive';
-				return 'other';
-			}
-
-			function formatBytes(bytes) {
-				if (bytes === 0) return '0 Bytes';
-				const k = 1024;
-				const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-				const i = Math.floor(Math.log(bytes) / Math.log(k));
-				return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-			}
-
-			function closeRealDebridLibrary() {
-				document.getElementById('rd-library-container').style.display = 'none';
-			}
-
-			async function refreshRealDebridLibrary() {
-				await showRealDebridLibrary();
-			}
-
-			function filterRealDebridLibrary() {
-				const search = document.getElementById('rd-search').value.toLowerCase();
-				const statusFilter = document.getElementById('rd-status-filter').value;
-				const items = document.querySelectorAll('.rd-library-item');
-
-				items.forEach(item => {
-					const title = item.querySelector('.rd-library-title').textContent.toLowerCase();
-					const status = item.dataset.status;
-					
-					const matchesSearch = !search || title.includes(search);
-					const matchesStatus = !statusFilter || status === statusFilter;
-					
-					item.style.display = matchesSearch && matchesStatus ? 'block' : 'none';
-				});
-			}
-
-			function selectAllRdItems() {
-				const checkboxes = document.querySelectorAll('.rd-item-select');
-				const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-				checkboxes.forEach(cb => cb.checked = !allChecked);
-			}
-
-			async function deleteSelectedRdItems() {
-				const selected = Array.from(document.querySelectorAll('.rd-item-select:checked')).map(cb => cb.value);
-				if (selected.length === 0) {
-					alert('No items selected');
-					return;
-				}
-
-				if (!confirm(`Delete ${selected.length} selected torrent(s)?`)) return;
-
-				try {
-					for (const id of selected) {
-						await apiManager.rdApi.deleteTorrent(id);
-					}
-					await refreshRealDebridLibrary();
-					showNotification(`Deleted ${selected.length} torrent(s)`, 'success');
-				} catch (error) {
-					console.error('Error deleting torrents:', error);
-					showNotification('Error deleting torrents: ' + error.message, 'error');
-				}
-			}
-
-			async function deleteRdTorrent(id) {
-				if (!confirm('Delete this torrent?')) return;
-
-				try {
-					await apiManager.rdApi.deleteTorrent(id);
-					await refreshRealDebridLibrary();
-					showNotification('Torrent deleted', 'success');
-				} catch (error) {
-					console.error('Error deleting torrent:', error);
-					showNotification('Error deleting torrent: ' + error.message, 'error');
-				}
-			}
-
-			async function downloadRdTorrent(id) {
-				try {
-					const torrentInfo = await apiManager.rdApi.getTorrentInfo(id);
-					if (torrentInfo.links && torrentInfo.links.length > 0) {
-						// Create download links modal
-						showRdDownloadLinks(torrentInfo);
-					} else {
-						showNotification('No download links available', 'warning');
-					}
-				} catch (error) {
-					console.error('Error getting download links:', error);
-					showNotification('Error getting download links: ' + error.message, 'error');
-				}
-			}
-
-			function showRdDownloadLinks(torrentInfo) {
-				const modal = document.createElement('div');
-				modal.className = 'modal-overlay';
-				modal.innerHTML = `
-					<div class="modal-content">
-						<div class="modal-header">
-							<h3>Download Links - ${torrentInfo.filename}</h3>
-							<button class="close-btn" onclick="this.closest('.modal-overlay').remove()">&times;</button>
-						</div>
-						<div class="modal-body">
-							${torrentInfo.links.map((link, index) => `
-								<div class="download-link-item" style="margin-bottom: 10px; padding: 10px; background: #2a2a2a; border-radius: 4px;">
-									<div style="margin-bottom: 5px;"><strong>${torrentInfo.files[index]?.path || 'File ' + (index + 1)}</strong></div>
-									<div style="margin-bottom: 5px;">Size: ${formatBytes(torrentInfo.files[index]?.bytes || 0)}</div>
-									<button onclick="window.open('${link}', '_blank')" class="btn btn-primary">Download</button>
-									<button onclick="copyToClipboard('${link}')" class="btn btn-secondary">Copy Link</button>
-								</div>
-							`).join('')}
-						</div>
-					</div>
-				`;
-				document.body.appendChild(modal);
-			}
-
-			async function selectRdFiles(id) {
-				try {
-					const torrentInfo = await apiManager.rdApi.getTorrentInfo(id);
-					showRdFileSelector(id, torrentInfo);
-				} catch (error) {
-					console.error('Error getting torrent info:', error);
-					showNotification('Error getting torrent info: ' + error.message, 'error');
-				}
-			}
-
-			function showRdFileSelector(torrentId, torrentInfo) {
-				const modal = document.createElement('div');
-				modal.className = 'modal-overlay';
-				modal.innerHTML = `
-					<div class="modal-content">
-						<div class="modal-header">
-							<h3>Select Files - ${torrentInfo.filename}</h3>
-							<button class="close-btn" onclick="this.closest('.modal-overlay').remove()">&times;</button>
-						</div>
-						<div class="modal-body">
-							<div style="margin-bottom: 15px;">
-								<button onclick="selectAllFiles()" class="btn btn-secondary">Select All</button>
-								<button onclick="selectVideoFiles()" class="btn btn-secondary">Video Files Only</button>
-							</div>
-							<div id="file-selector">
-								${torrentInfo.files.map((file, index) => `
-									<div class="file-selector-item" style="margin-bottom: 8px; padding: 8px; background: #2a2a2a; border-radius: 4px;">
-										<label style="display: flex; align-items: center; cursor: pointer;">
-											<input type="checkbox" value="${file.id}" style="margin-right: 10px;">
-											<div>
-												<div><strong>${file.path}</strong></div>
-												<div style="font-size: 12px; color: #999;">${formatBytes(file.bytes)}</div>
-											</div>
-										</label>
-									</div>
-								`).join('')}
-							</div>
-							<div style="margin-top: 15px; text-align: right;">
-								<button onclick="this.closest('.modal-overlay').remove()" class="btn btn-secondary">Cancel</button>
-								<button onclick="confirmFileSelection('${torrentId}')" class="btn btn-primary">Start Download</button>
-							</div>
-						</div>
-					</div>
-				`;
-				document.body.appendChild(modal);
-			}
-
-			function selectAllFiles() {
-				document.querySelectorAll('#file-selector input[type="checkbox"]').forEach(cb => cb.checked = true);
-			}
-
-			function selectVideoFiles() {
-				document.querySelectorAll('#file-selector input[type="checkbox"]').forEach(cb => {
-					const label = cb.closest('label').textContent;
-					const ext = label.split('.').pop().toLowerCase();
-					const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'webm'];
-					cb.checked = videoExts.includes(ext);
-				});
-			}
-
-			async function confirmFileSelection(torrentId) {
-				const selected = Array.from(document.querySelectorAll('#file-selector input[type="checkbox"]:checked')).map(cb => cb.value);
-				if (selected.length === 0) {
-					alert('Please select at least one file');
-					return;
-				}
-
-				try {
-					await apiManager.rdApi.selectFiles(torrentId, selected.join(','));
-					document.querySelector('.modal-overlay').remove();
-					await refreshRealDebridLibrary();
-					showNotification('Files selected for download', 'success');
-				} catch (error) {
-					console.error('Error selecting files:', error);
-					showNotification('Error selecting files: ' + error.message, 'error');
-				}
+				// Add active class to clicked tab and corresponding content
+				event.target.classList.add('active');
+				document.getElementById(tabName + '-settings').classList.add('active');
 			}
 		</script>
 	</body>
