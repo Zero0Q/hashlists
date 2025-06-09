@@ -1421,8 +1421,12 @@
 				}
 
 				localStorage.setItem('traktClientId', clientId);
-				// Update the API manager with the new client ID
-				window.apiManager.updateTraktClientId(clientId);
+				// Update the API manager with the new client ID (with proper error handling)
+				if (window.apiManager && typeof window.apiManager.updateTraktClientId === 'function') {
+					window.apiManager.updateTraktClientId(clientId);
+				} else if (apiManager && typeof apiManager.updateTraktClientId === 'function') {
+					apiManager.updateTraktClientId(clientId);
+				}
 				showToast('Trakt Client ID saved', 'success');
 			}
 
