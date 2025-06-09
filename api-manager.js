@@ -295,73 +295,141 @@ class APIManager {
         return processed;
     }
 
-    isMagnetLink(text) {
-        return text.startsWith('magnet:?xt=urn:btih:');
-    }
-
-    extractMetadataFromMagnet(magnetLink) {
-        const params = new URLSearchParams(magnetLink.split('?')[1]);
-        const displayName = params.get('dn') || '';
-        
-        return {
-            title: this.cleanTitle(displayName),
-            quality: this.extractQuality(displayName),
-            size: this.extractSize(displayName),
-            type: this.detectContentType(displayName),
-            hdr: this.extractHDRInfo(displayName),
-            codec: this.extractCodec(displayName)
-        };
-    }
-
-    cleanTitle(title) {
-        // Remove common release group tags and quality indicators
-        return title
-            .replace(/\[.*?\]/g, '')
-            .replace(/\(.*?\)/g, '')
-            .replace(/\d{4}p?/g, '')
-            .replace(/BluRay|WEB-DL|WEBRip|HDRip|BRRip/gi, '')
-            .replace(/x264|x265|HEVC/gi, '')
-            .trim();
-    }
-
-    extractQuality(title) {
-        const qualityMatch = title.match(/(\d{3,4}p)|4K|UHD/i);
-        return qualityMatch ? qualityMatch[0] : 'Unknown';
-    }
-
-    extractSize(title) {
-        const sizeMatch = title.match(/(\d+(?:\.\d+)?)\s*(GB|MB)/i);
-        return sizeMatch ? `${sizeMatch[1]} ${sizeMatch[2]}` : 'Unknown';
-    }
-
-    detectContentType(title) {
-        if (/S\d{2}E\d{2}|Season|Episode/i.test(title)) {
-            return 'tv';
+    async searchHashLists(query) {
+        try {
+            // Get all HTML files in the workspace
+            const hashListFiles = await this.getAllHashListFiles();
+            const results = [];
+            
+            // Search through each hash list file
+            for (const file of hashListFiles) {
+                try {
+                    const response = await fetch(file);
+                    if (response.ok) {
+                        const content = await response.text();
+                        
+                        // Search for the query in the content (case-insensitive)
+                        if (content.toLowerCase().includes(query.toLowerCase())) {
+                            results.push({
+                                file: file,
+                                title: file.replace('.html', '').replace(/[0-9a-f-]/g, ''), // Clean up filename
+                                source: 'Hash List'
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Failed to search file ${file}:`, error);
+                }
+            }
+            
+            return results;
+        } catch (error) {
+            console.error('Error searching hash lists:', error);
+            return [];
         }
-        return 'movie';
     }
 
-    extractHDRInfo(title) {
-        const hdrTypes = {
-            dolbyVision: /dolby.?vision|dv/i.test(title),
-            hdr10Plus: /hdr10\+/i.test(title),
-            hdr10: /hdr10(?!\+)/i.test(title),
-            hdr: /\bhdr\b/i.test(title) && !/hdr10/i.test(title)
-        };
+    // Get all hash list files
+    async getAllHashListFiles() {
+        try {
+            // Get the current directory listing
+            const response = await fetch('./');
+            if (response.ok) {
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const links = doc.querySelectorAll('a');
+                
+                const htmlFiles = [];
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href && href.endsWith('.html') && href !== 'index.html') {
+                        htmlFiles.push(href);
+                    }
+                });
+                
+                return htmlFiles;
+            }
+            return [];
+        } catch (error) {
+            console.error('Error getting hash list files:', error);
+            return [];
+        }
+    }
 
-        if (hdrTypes.dolbyVision) return 'Dolby Vision';
-        if (hdrTypes.hdr10Plus) return 'HDR10+';
-        if (hdrTypes.hdr10) return 'HDR10';
-        if (hdrTypes.hdr) return 'HDR';
+    // Find all matching content for a specific title and type
+    async findAllMatchingContent(title, type) {
+        try {
+            const hashListFiles = await this.getAllHashListFiles();
+            const allMatches = [];
+            
+            for (const file of hashListFiles) {
+                try {
+                    const response = await fetch(file);
+                    if (response.ok) {
+                        const content = await response.text();
+                        const matches = await this.processHashListForMatching(content, {
+                            quality: 'any', // Accept any quality for this search
+                            allowHigherQuality: true,
+                            allowLowerQuality: true
+                        });
+                        
+                        // Filter matches by title similarity
+                        const titleMatches = matches.filter(match => 
+                            this.titlesSimilar(match.title, title)
+                        );
+                        
+                        allMatches.push(...titleMatches);
+                    }
+                } catch (error) {
+                    console.warn(`Failed to process file ${file}:`, error);
+                }
+            }
+            
+            return allMatches;
+        } catch (error) {
+            console.error('Error finding matching content:', error);
+            return [];
+        }
+    }
+
+    // Check if two titles are similar (basic implementation)
+    titlesSimilar(title1, title2) {
+        const clean1 = this.cleanTitle(title1).toLowerCase();
+        const clean2 = this.cleanTitle(title2).toLowerCase();
         
-        return 'SDR'; // Standard Dynamic Range
+        // Simple similarity check - can be enhanced with more sophisticated algorithms
+        return clean1.includes(clean2) || clean2.includes(clean1) || 
+               this.levenshteinDistance(clean1, clean2) <= 3;
     }
 
-    extractCodec(title) {
-        if (/x265|hevc|h\.?265/i.test(title)) return 'HEVC';
-        if (/x264|h\.?264/i.test(title)) return 'H.264';
-        if (/av1/i.test(title)) return 'AV1';
-        return 'Unknown';
+    // Basic Levenshtein distance for title similarity
+    levenshteinDistance(str1, str2) {
+        const matrix = [];
+        
+        for (let i = 0; i <= str2.length; i++) {
+            matrix[i] = [i];
+        }
+        
+        for (let j = 0; j <= str1.length; j++) {
+            matrix[0][j] = j;
+        }
+        
+        for (let i = 1; i <= str2.length; i++) {
+            for (let j = 1; j <= str1.length; j++) {
+                if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j] + 1
+                    );
+                }
+            }
+        }
+        
+        return matrix[str2.length][str1.length];
     }
 
     // Enhanced quality comparison methods
