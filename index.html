@@ -48,6 +48,7 @@
 	<body>
 		<div id="panel">
 			<span id="currentPath"></span>
+			<button id="allHashlistsButton">All hash lists</button>
 			<button id="previousButton">Previous hash list</button>
 			<button id="randomButton">Random hash list</button>
 			<button id="nextButton">Next hash list</button>
@@ -62,6 +63,7 @@
 				let currentIndex = 0;
 
 				const currentPathElement = document.getElementById("currentPath");
+				const allHashlistsButton = document.getElementById("allHashlistsButton");
 				const previousButton = document.getElementById("previousButton");
 				const randomButton = document.getElementById("randomButton");
 				const nextButton = document.getElementById("nextButton");
@@ -69,7 +71,7 @@
 
 				// Fetch contents of the GitHub API
 				fetch(
-					"https://api.github.com/repos/debridmediamanager/hashlists/contents"
+					"https://api.github.com/repos/Zero0Q/hashlists/contents"
 				)
 					.then((response) => response.json())
 					.then((data) => {
@@ -89,7 +91,7 @@
 				function loadPathAtIndex(index) {
 					const path = htmlFiles[index].path;
 					iframe.src = path;
-					currentPathElement.textContent = "https://hashlists.debridmediamanager.com/"+path;
+					currentPathElement.textContent = "https://zero0q.github.io/hashlists/"+path;
 					updateButtonStates();
 				}
 
@@ -98,6 +100,11 @@
 					randomButton.disabled = htmlFiles.length <= 1;
 					nextButton.disabled = currentIndex === htmlFiles.length - 1;
 				}
+
+				allHashlistsButton.addEventListener("click", function () {
+					// Show all hash lists - could navigate to a directory view or list
+					window.open("https://github.com/Zero0Q/hashlists", "_blank");
+				});
 
 				previousButton.addEventListener("click", function () {
 					if (currentIndex > 0) {
