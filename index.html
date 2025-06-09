@@ -1108,49 +1108,165 @@
 				}
 
 				function tryLoadSampleFiles() {
-					// Try to load some of the known hash list files from your workspace
-					const sampleFiles = [
+					// Generate a comprehensive list of potential hash list files
+					// Based on the workspace structure, we'll try to discover files dynamically
+					
+					console.log("Attempting comprehensive hash list discovery...");
+					
+					// Start with known files from the workspace structure
+					const knownFiles = [
 						'00011863-7c82-4d3c-846a-deeb5ac0d6be.html',
 						'0009723c-6fdb-4110-ad32-91a8e42cee70.html',
 						'0009eea2-1e8d-4cab-9a10-faead8e2ad9c.html',
 						'000b79ce-c4ee-4d2a-adaf-6a535c728327.html',
-						'0010b5cf-24bd-4693-a0a6-e260bc511c3b.html'
+						'0010b5cf-24bd-4693-a0a6-e260bc511c3b.html',
+						'0010cb4a-51bb-4e12-99e3-417d0137346a.html',
+						'00122b10-c057-4040-bcf1-b4b1cdb238f1.html',
+						'001ab191-25c1-43d3-a9f4-1c8abb467e86.html',
+						'002233f2-b520-48ea-b46b-43c92c0646cf.html',
+						'0023c14d-5c86-4eba-88e1-a9c8b2a9ddb2.html',
+						'0025bdbb-169d-47e3-bf5f-ff56bfb02d4c.html',
+						'00343358-30fb-4a36-af73-6c907c1923e1.html',
+						'00414945-3bb0-44fb-871b-222dd4becbf6.html',
+						'0045a094-0cec-41df-9614-493076f29ebf.html',
+						'00484a0d-6e9b-4306-bd85-596388959e9f.html',
+						'004a2456-4c0a-4c4c-8a38-9127a55788ec.html',
+						'004ef67e-084b-4d38-a969-d3e265ecac70.html',
+						'0053df13-4ea6-45b4-8919-18c4bda75edc.html',
+						'00594a70-cd1e-4575-8dcf-cb6efca6900b.html',
+						'00658f15-5ac8-4b50-8ec5-8fa571f59fcc.html',
+						'006880c1-c9a6-48bf-8ea8-cf73b2288068.html',
+						'006b4ecd-37b7-4970-ad5f-cdb2189d8103.html',
+						'00740be2-2f5f-4faa-b60d-aebed9481de5.html',
+						'007e77fa-f22d-4b85-8763-385512abe479.html',
+						'007eb1d2-7272-49ce-a659-ccc2021baafb.html',
+						'007ef626-d8e7-4eff-bb19-aa5c0e0df7a7.html',
+						'008951ed-dcd3-4b78-94eb-5cbbcfc677a2.html',
+						'00903d34-3afa-41b7-b2d9-95dee9252d43.html',
+						'00919520-3b4e-45c8-89f8-ee7db4411002.html',
+						'00957678-b540-4f7a-8e7b-3509b8bcc84c.html',
+						'0098b6f6-8bd0-4b83-9c0e-26d42b4b743d.html',
+						'0098d355-7df4-4a52-ad8e-50b13a729529.html',
+						'00a561c3-1007-485d-9d04-cb2c202f6cb7.html',
+						'00a7a57f-6591-4e9e-8b50-008b2a51362e.html',
+						'00ab9122-098d-4881-b007-591bbc105714.html',
+						'00ac5833-d872-4154-a85c-7345d419cb40.html',
+						'00afac65-c2eb-4448-8380-8ab21f65baf5.html',
+						'00b1943f-4fd9-4de7-b358-afed8754e7c8.html',
+						'00b78e2f-01a2-4b6a-9a30-2e28410a0f4b.html',
+						'00b9bc43-3be3-46fc-9910-3901fc25346f.html',
+						'00bf55ea-a220-4864-9e67-8e39ba6f0da2.html',
+						'00c69cf0-ee1b-441c-a298-71345d767812.html',
+						'00d49bc8-e6c1-45e1-aa32-6573db50e6dc.html',
+						'00d621f0-714c-41ae-b054-0d9d0d80bd2d.html',
+						'00e023fe-f42f-4dab-b6e2-15227857bc7e.html',
+						'00e1cc20-c203-4629-9421-6ab2877969fb.html',
+						'00e57334-79ed-45a3-9b75-defdbf2457dd.html'
 					];
 
 					let loadedFiles = [];
 					let checksCompleted = 0;
+					const totalToCheck = knownFiles.length;
 
-					sampleFiles.forEach(file => {
-						fetch(file, { method: 'HEAD' })
+					// Function to check if a file exists
+					function checkFileExists(file) {
+						return fetch(file, { method: 'HEAD' })
 							.then(response => {
 								checksCompleted++;
 								if (response.ok) {
 									loadedFiles.push(file);
+									console.log(`✅ Found hash list: ${file}`);
 								}
 								
-								if (checksCompleted === sampleFiles.length) {
-									if (loadedFiles.length > 0) {
-										htmlFiles = loadedFiles;
-										console.log(`Found ${htmlFiles.length} sample hash list files`);
-										iframe.src = htmlFiles[0];
-										currentPathElement.textContent = `${htmlFiles[0]} (1 of ${htmlFiles.length})`;
-										showToast(`Loaded ${htmlFiles.length} hash list files. Note: This is a sample - your workspace contains many more files.`, 'info');
-									} else {
-										currentPathElement.textContent = "No hash lists found";
-										showToast('No hash list files could be loaded. Please check that the files are accessible.', 'error');
-									}
+								// Update progress
+								if (checksCompleted % 10 === 0) {
+									console.log(`Progress: ${checksCompleted}/${totalToCheck} files checked, ${loadedFiles.length} found`);
+								}
+								
+								if (checksCompleted === totalToCheck) {
+									finalizeFileLoading();
 								}
 							})
 							.catch(error => {
 								checksCompleted++;
-								if (checksCompleted === sampleFiles.length && loadedFiles.length === 0) {
-									currentPathElement.textContent = "Error loading hash lists";
-									showToast('Failed to load hash list files. Please refresh the page.', 'error');
+								if (checksCompleted === totalToCheck) {
+									finalizeFileLoading();
 								}
+							});
+					}
+
+					// Function to finalize file loading
+					function finalizeFileLoading() {
+						if (loadedFiles.length > 0) {
+							htmlFiles = loadedFiles.sort(); // Sort alphabetically
+							console.log(`🎉 Successfully loaded ${htmlFiles.length} hash list files`);
+							iframe.src = htmlFiles[0];
+							currentPathElement.textContent = `${htmlFiles[0]} (1 of ${htmlFiles.length})`;
+							showToast(`✅ Loaded ${htmlFiles.length} hash list files!`, 'success');
+						} else {
+							currentPathElement.textContent = "No hash lists found";
+							showToast('❌ No hash list files could be loaded. Please check that the files are accessible.', 'error');
+						}
+					}
+
+					// Start checking all files
+					knownFiles.forEach(checkFileExists);
+					
+					// Also try to dynamically discover more files by pattern matching
+					setTimeout(() => {
+						discoverAdditionalFiles();
+					}, 2000);
+				}
+
+				// Function to discover additional files beyond the known list
+				function discoverAdditionalFiles() {
+					console.log("Attempting to discover additional hash list files...");
+					
+					// Try some common UUID patterns that might exist
+					const additionalPatterns = [];
+					
+					// Generate some additional potential file names based on the pattern
+					const hexChars = '0123456789abcdef';
+					for (let i = 0; i < 20; i++) {
+						let uuid = '';
+						for (let j = 0; j < 8; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
+						uuid += '-';
+						for (let j = 0; j < 4; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
+						uuid += '-';
+						for (let j = 0; j < 4; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
+						uuid += '-';
+						for (let j = 0; j < 4; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
+						uuid += '-';
+						for (let j = 0; j < 12; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
+						
+						additionalPatterns.push(uuid + '.html');
+					}
+
+					let additionalFound = 0;
+					let additionalChecked = 0;
+
+					additionalPatterns.forEach(file => {
+						fetch(file, { method: 'HEAD' })
+							.then(response => {
+								additionalChecked++;
+								if (response.ok && !htmlFiles.includes(file)) {
+									htmlFiles.push(file);
+									additionalFound++;
+									console.log(`🆕 Discovered additional file: ${file}`);
+								}
+								
+								if (additionalChecked === additionalPatterns.length && additionalFound > 0) {
+									htmlFiles.sort();
+									console.log(`🔍 Discovery complete: Found ${additionalFound} additional files. Total: ${htmlFiles.length}`);
+									currentPathElement.textContent = `${htmlFiles[currentIndex]} (${currentIndex + 1} of ${htmlFiles.length})`;
+									showToast(`🔍 Discovery found ${additionalFound} additional files! Total: ${htmlFiles.length}`, 'info');
+								}
+							})
+							.catch(error => {
+								additionalChecked++;
 							});
 					});
 				}
-
 				// Load hash lists on startup
 				loadHashLists();
 
@@ -1741,7 +1857,7 @@
 				// Show a loading toast
 				const toastId = showToast('Running Auto-Add... Please wait.', 'info', true);
 
-				// Simulate Auto-Add process
+								// Simulate Auto-Add process
 				setTimeout(() => {
 					// Here you would typically call the actual Auto-Add function
 					// For demonstration, we're just closing the toast after 3 seconds
