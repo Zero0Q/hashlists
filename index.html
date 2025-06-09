@@ -1081,40 +1081,63 @@
 				// Load settings and update UI
 				initializeSettings();
 
-				// Load all HTML files - improved approach for GitHub Pages
+				// Load all HTML files - improved GitHub API approach
 				function loadHashLists() {
-					// Since GitHub Pages doesn't provide directory listings reliably,
-					// we'll try multiple approaches to find hash lists
+					console.log("Loading hash lists using GitHub API approach...");
 					
-					// First, try to use the API manager to get files
-					apiManager.getAllHashListFiles()
+					// First try GitHub API to get all files
+					fetchFromGitHubAPI()
 						.then(files => {
 							if (files.length > 0) {
 								htmlFiles = files;
-								console.log(`Found ${htmlFiles.length} hash list files`);
-								
-								// Set initial iframe source to the first file
-								iframe.src = htmlFiles[0];
-								currentPathElement.textContent = `${htmlFiles[0]} (1 of ${htmlFiles.length})`;
+								console.log(`✅ Found ${htmlFiles.length} hash list files via GitHub API`);
+								initializeFileNavigation();
 							} else {
-								// Fallback: try to load a sample file to verify the directory structure
-								tryLoadSampleFiles();
+								console.log("GitHub API returned no files, falling back to direct discovery");
+								tryDirectDiscovery();
 							}
 						})
 						.catch(error => {
-							console.error("Error loading hash lists:", error);
-							tryLoadSampleFiles();
+							console.error("GitHub API failed:", error);
+							console.log("Falling back to direct discovery method");
+							tryDirectDiscovery();
 						});
 				}
 
-				function tryLoadSampleFiles() {
-					// Generate a comprehensive list of potential hash list files
-					// Based on the workspace structure, we'll try to discover files dynamically
+				// Use GitHub API to fetch all hash list files
+				async function fetchFromGitHubAPI() {
+					try {
+						console.log("Fetching file list from GitHub API...");
+						
+						// Use GitHub API to get repository tree
+						const response = await fetch('https://api.github.com/repos/debridmediamanager/hashlists/git/trees/main?recursive=1');
+						
+						if (!response.ok) {
+							throw new Error(`GitHub API returned ${response.status}`);
+						}
+						
+						const data = await response.json();
+						
+						// Filter for .html files
+						const htmlFiles = data.tree
+							.filter(item => item.type === 'blob' && item.path.endsWith('.html'))
+							.map(item => item.path);
+						
+						console.log(`GitHub API found ${htmlFiles.length} HTML files`);
+						return htmlFiles;
+						
+					} catch (error) {
+						console.error("GitHub API error:", error);
+						return [];
+					}
+				}
+
+				// Alternative: Try to discover files by making HEAD requests
+				async function tryDirectDiscovery() {
+					console.log("Attempting direct file discovery...");
 					
-					console.log("Attempting comprehensive hash list discovery...");
-					
-					// Start with known files from the workspace structure
-					const knownFiles = [
+					// Start with a larger set of potential files
+					const baseFiles = [
 						'00011863-7c82-4d3c-846a-deeb5ac0d6be.html',
 						'0009723c-6fdb-4110-ad32-91a8e42cee70.html',
 						'0009eea2-1e8d-4cab-9a10-faead8e2ad9c.html',
@@ -1164,108 +1187,111 @@
 						'00e57334-79ed-45a3-9b75-defdbf2457dd.html'
 					];
 
-					let loadedFiles = [];
-					let checksCompleted = 0;
-					const totalToCheck = knownFiles.length;
+					// Also generate additional potential file patterns
+					const additionalFiles = generatePotentialFiles(500); // Generate 500 potential files
+					const allPotentialFiles = [...baseFiles, ...additionalFiles];
 
-					// Function to check if a file exists
-					function checkFileExists(file) {
-						return fetch(file, { method: 'HEAD' })
-							.then(response => {
-								checksCompleted++;
-								if (response.ok) {
-									loadedFiles.push(file);
-									console.log(`✅ Found hash list: ${file}`);
-								}
-								
-								// Update progress
-								if (checksCompleted % 10 === 0) {
-									console.log(`Progress: ${checksCompleted}/${totalToCheck} files checked, ${loadedFiles.length} found`);
-								}
-								
-								if (checksCompleted === totalToCheck) {
-									finalizeFileLoading();
-								}
-							})
-							.catch(error => {
-								checksCompleted++;
-								if (checksCompleted === totalToCheck) {
-									finalizeFileLoading();
-								}
-							});
-					}
-
-					// Function to finalize file loading
-					function finalizeFileLoading() {
-						if (loadedFiles.length > 0) {
-							htmlFiles = loadedFiles.sort(); // Sort alphabetically
-							console.log(`🎉 Successfully loaded ${htmlFiles.length} hash list files`);
-							iframe.src = htmlFiles[0];
-							currentPathElement.textContent = `${htmlFiles[0]} (1 of ${htmlFiles.length})`;
-							showToast(`✅ Loaded ${htmlFiles.length} hash list files!`, 'success');
-						} else {
-							currentPathElement.textContent = "No hash lists found";
-							showToast('❌ No hash list files could be loaded. Please check that the files are accessible.', 'error');
-						}
-					}
-
-					// Start checking all files
-					knownFiles.forEach(checkFileExists);
+					console.log(`Checking ${allPotentialFiles.length} potential hash list files...`);
 					
-					// Also try to dynamically discover more files by pattern matching
-					setTimeout(() => {
-						discoverAdditionalFiles();
-					}, 2000);
+					let foundFiles = [];
+					let checkedCount = 0;
+					const totalToCheck = allPotentialFiles.length;
+
+					// Check files in batches to avoid overwhelming the server
+					const batchSize = 20;
+					for (let i = 0; i < allPotentialFiles.length; i += batchSize) {
+						const batch = allPotentialFiles.slice(i, i + batchSize);
+						
+						await Promise.all(batch.map(async (file) => {
+							try {
+								const response = await fetch(file, { method: 'HEAD' });
+								checkedCount++;
+								
+								if (response.ok) {
+									foundFiles.push(file);
+									console.log(`✅ Found: ${file} (${foundFiles.length} total)`);
+								}
+								
+								// Update progress every 50 files
+								if (checkedCount % 50 === 0) {
+									console.log(`Progress: ${checkedCount}/${totalToCheck} checked, ${foundFiles.length} found`);
+									showToast(`Discovery progress: ${foundFiles.length} files found`, 'info');
+								}
+							} catch (error) {
+								checkedCount++;
+								// Silently ignore failed requests
+							}
+						}));
+
+						// Small delay between batches to be respectful to the server
+						await new Promise(resolve => setTimeout(resolve, 100));
+					}
+
+					if (foundFiles.length > 0) {
+						htmlFiles = foundFiles.sort();
+						console.log(`🎉 Direct discovery found ${htmlFiles.length} hash list files`);
+						showToast(`✅ Discovered ${htmlFiles.length} hash list files!`, 'success');
+						initializeFileNavigation();
+					} else {
+						console.error("No hash list files could be discovered");
+						currentPathElement.textContent = "No hash lists found";
+						showToast('❌ No hash list files could be loaded. Please check your connection.', 'error');
+					}
 				}
 
-				// Function to discover additional files beyond the known list
-				function discoverAdditionalFiles() {
-					console.log("Attempting to discover additional hash list files...");
-					
-					// Try some common UUID patterns that might exist
-					const additionalPatterns = [];
-					
-					// Generate some additional potential file names based on the pattern
+				// Generate potential file names based on UUID patterns
+				function generatePotentialFiles(count) {
+					const files = [];
 					const hexChars = '0123456789abcdef';
-					for (let i = 0; i < 20; i++) {
+					
+					for (let i = 0; i < count; i++) {
+						// Generate UUID v4 pattern: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
 						let uuid = '';
-						for (let j = 0; j < 8; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
-						uuid += '-';
-						for (let j = 0; j < 4; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
-						uuid += '-';
-						for (let j = 0; j < 4; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
-						uuid += '-';
-						for (let j = 0; j < 4; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
-						uuid += '-';
-						for (let j = 0; j < 12; j++) uuid += hexChars[Math.floor(Math.random() * 16)];
 						
-						additionalPatterns.push(uuid + '.html');
+						// First group: 8 hex chars
+						for (let j = 0; j < 8; j++) {
+							uuid += hexChars[Math.floor(Math.random() * 16)];
+						}
+						uuid += '-';
+						
+						// Second group: 4 hex chars
+						for (let j = 0; j < 4; j++) {
+							uuid += hexChars[Math.floor(Math.random() * 16)];
+						}
+						uuid += '-';
+						
+						// Third group: 4xxx (4 followed by 3 hex chars)
+						uuid += '4';
+						for (let j = 0; j < 3; j++) {
+							uuid += hexChars[Math.floor(Math.random() * 16)];
+						}
+						uuid += '-';
+						
+						// Fourth group: yxxx (8, 9, a, or b followed by 3 hex chars)
+						uuid += ['8', '9', 'a', 'b'][Math.floor(Math.random() * 4)];
+						for (let j = 0; j < 3; j++) {
+							uuid += hexChars[Math.floor(Math.random() * 16)];
+						}
+						uuid += '-';
+						
+						// Fifth group: 12 hex chars
+						for (let j = 0; j < 12; j++) {
+							uuid += hexChars[Math.floor(Math.random() * 16)];
+						}
+						
+						files.push(uuid + '.html');
 					}
+					
+					return files;
+				}
 
-					let additionalFound = 0;
-					let additionalChecked = 0;
-
-					additionalPatterns.forEach(file => {
-						fetch(file, { method: 'HEAD' })
-							.then(response => {
-								additionalChecked++;
-								if (response.ok && !htmlFiles.includes(file)) {
-									htmlFiles.push(file);
-									additionalFound++;
-									console.log(`🆕 Discovered additional file: ${file}`);
-								}
-								
-								if (additionalChecked === additionalPatterns.length && additionalFound > 0) {
-									htmlFiles.sort();
-									console.log(`🔍 Discovery complete: Found ${additionalFound} additional files. Total: ${htmlFiles.length}`);
-									currentPathElement.textContent = `${htmlFiles[currentIndex]} (${currentIndex + 1} of ${htmlFiles.length})`;
-									showToast(`🔍 Discovery found ${additionalFound} additional files! Total: ${htmlFiles.length}`, 'info');
-								}
-							})
-							.catch(error => {
-								additionalChecked++;
-							});
-					});
+				// Initialize file navigation after files are loaded
+				function initializeFileNavigation() {
+					if (htmlFiles.length > 0) {
+						iframe.src = htmlFiles[0];
+						currentPathElement.textContent = `${htmlFiles[0]} (1 of ${htmlFiles.length})`;
+						console.log(`Initialized with ${htmlFiles.length} hash lists`);
+					}
 				}
 				// Load hash lists on startup
 				loadHashLists();
