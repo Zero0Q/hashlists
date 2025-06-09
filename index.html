@@ -526,6 +526,127 @@
 				color: #999;
 				font-style: italic;
 			}
+
+			/* Simple viewer styles */
+			.simple-viewer {
+				padding: 20px;
+				font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+				background: #1a1a1a;
+				color: #ffffff;
+				min-height: 100vh;
+			}
+			
+			.viewer-header {
+				background: #2a2a2a;
+				padding: 15px;
+				border-radius: 8px;
+				margin-bottom: 20px;
+				border-left: 4px solid #007bff;
+			}
+			
+			.viewer-content {
+				background: #2a2a2a;
+				border-radius: 8px;
+				padding: 20px;
+			}
+			
+			.hash-list-info {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+				gap: 15px;
+				margin-bottom: 20px;
+			}
+			
+			.info-card {
+				background: #3a3a3a;
+				padding: 15px;
+				border-radius: 6px;
+				text-align: center;
+			}
+			
+			.info-card h3 {
+				margin: 0 0 10px 0;
+				color: #007bff;
+				font-size: 1.1em;
+			}
+			
+			.info-card .value {
+				font-size: 1.5em;
+				font-weight: bold;
+				color: #28a745;
+			}
+			
+			.magnet-link {
+				background: #3a3a3a;
+				border: 1px solid #555;
+				border-radius: 6px;
+				padding: 15px;
+				margin-bottom: 10px;
+				word-break: break-all;
+				transition: background-color 0.3s;
+			}
+			
+			.magnet-link:hover {
+				background: #4a4a4a;
+			}
+			
+			.magnet-link .magnet-header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				margin-bottom: 10px;
+			}
+			
+			.magnet-link .magnet-title {
+				font-weight: bold;
+				color: #ffffff;
+				flex: 1;
+			}
+			
+			.magnet-link .magnet-size {
+				color: #007bff;
+				font-weight: bold;
+				margin-left: 15px;
+			}
+			
+			.magnet-link .magnet-url {
+				font-family: monospace;
+				font-size: 0.85em;
+				color: #ccc;
+				background: #2a2a2a;
+				padding: 8px;
+				border-radius: 4px;
+				margin-top: 8px;
+			}
+			
+			.copy-btn {
+				background: #007bff;
+				color: white;
+				border: none;
+				padding: 5px 10px;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 0.85em;
+			}
+			
+			.copy-btn:hover {
+				background: #0056b3;
+			}
+			
+			.loading-simple {
+				text-align: center;
+				padding: 40px;
+				color: #999;
+			}
+			
+			.error-simple {
+				text-align: center;
+				padding: 40px;
+				color: #dc3545;
+				background: rgba(220, 53, 69, 0.1);
+				border: 1px solid rgba(220, 53, 69, 0.3);
+				border-radius: 8px;
+			}
 		</style>
 	</head>
 	<body>
@@ -548,6 +669,7 @@
 			<button id="randomButton">Random hash list</button>
 			<button id="nextButton">Next hash list</button>
 			<button onclick="showRealDebridLibrary()" class="rd-library-btn">📚 RD Library</button>
+			<button id="simpleViewBtn">📄 Simple View</button>
 			<span id="close"><a href="https://debridmediamanager.com/">[X]</a></span>
 		</div>
 
@@ -837,6 +959,17 @@
 				<!-- Library Content -->
 				<div id="rd-library-content">
 					<div class="loading">Loading your Real-Debrid library...</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Simple Viewer Modal -->
+		<div id="simpleViewerModal" class="modal">
+			<div class="modal-content" style="max-width: 95%; width: 1200px;">
+				<span class="close">&times;</span>
+				<h2>📄 Simple Hash List Viewer</h2>
+				<div id="simple-viewer-content">
+					<div class="loading-simple">Loading hash list...</div>
 				</div>
 			</div>
 		</div>
@@ -1595,6 +1728,115 @@
 				// Add active class to clicked tab and corresponding content
 				event.target.classList.add('active');
 				document.getElementById(tabName + '-settings').classList.add('active');
+			}
+
+			// Add simple viewer functionality
+			document.addEventListener('DOMContentLoaded', function() {
+				const simpleViewBtn = document.getElementById('simpleViewBtn');
+				if (simpleViewBtn) {
+					simpleViewBtn.addEventListener('click', showSimpleViewer);
+				}
+			});
+
+			function showSimpleViewer() {
+				const iframe = document.querySelector('iframe');
+				const currentFile = iframe.src;
+				
+				if (!currentFile) {
+					showToast('No hash list loaded', 'error');
+					return;
+				}
+
+				// Show the simple viewer modal
+				document.getElementById('simpleViewerModal').style.display = 'block';
+				loadSimpleView(currentFile);
+			}
+
+			async function loadSimpleView(fileUrl) {
+				const content = document.getElementById('simple-viewer-content');
+				content.innerHTML = '<div class="loading-simple">Loading hash list...</div>';
+
+				try {
+					// Extract the filename from URL
+					const fileName = fileUrl.split('/').pop() || 'Hash List';
+					
+					// Try to fetch and parse the hash list file
+					const response = await fetch(fileUrl);
+					if (!response.ok) {
+						throw new Error('Failed to load hash list');
+					}
+
+					const htmlContent = await response.text();
+					
+					// Extract the encoded data from the iframe src
+					const iframeMatch = htmlContent.match(/src="([^"]+)"/);
+					if (!iframeMatch) {
+						throw new Error('Could not extract hash list data');
+					}
+
+					const iframeSrc = iframeMatch[1];
+					const hashMatch = iframeSrc.match(/#(.+)$/);
+					if (!hashMatch) {
+						throw new Error('Could not find hash list data');
+					}
+
+					// For now, display basic info since decoding the hash list would require
+					// understanding the debridmediamanager.com encoding format
+					content.innerHTML = `
+						<div class="simple-viewer">
+							<div class="viewer-header">
+								<h2>📄 ${fileName}</h2>
+								<p>Hash list loaded from debridmediamanager.com</p>
+							</div>
+							<div class="viewer-content">
+								<div class="hash-list-info">
+									<div class="info-card">
+										<h3>File Name</h3>
+										<div class="value">${fileName}</div>
+									</div>
+									<div class="info-card">
+										<h3>Status</h3>
+										<div class="value">Loaded</div>
+									</div>
+									<div class="info-card">
+										<h3>Source</h3>
+										<div class="value">DMM</div>
+									</div>
+								</div>
+								<div class="error-simple">
+									<h3>📋 Hash List Data</h3>
+									<p>This hash list contains encoded torrent data from debridmediamanager.com.</p>
+									<p>The data is encoded and requires their platform to decode and display properly.</p>
+									<p><strong>To view the actual torrents:</strong></p>
+									<ul style="text-align: left; display: inline-block;">
+										<li>Visit <a href="https://debridmediamanager.com" target="_blank">debridmediamanager.com</a></li>
+										<li>Use their platform to browse hash lists</li>
+										<li>The current hash list data is: <code style="word-break: break-all;">${hashMatch[1].substring(0, 100)}...</code></li>
+									</ul>
+								</div>
+							</div>
+						</div>
+					`;
+
+				} catch (error) {
+					console.error('Error loading simple view:', error);
+					content.innerHTML = `
+						<div class="error-simple">
+							<h3>❌ Error Loading Hash List</h3>
+							<p>Could not load or parse the hash list file.</p>
+							<p>Error: ${error.message}</p>
+							<p>The file might be using a format that requires the debridmediamanager.com platform.</p>
+						</div>
+					`;
+				}
+			}
+
+			function copyToClipboard(text) {
+				navigator.clipboard.writeText(text).then(() => {
+					showToast('Copied to clipboard!', 'success');
+				}).catch(() => {
+					showToast('Could not copy to clipboard', 'error');
+				});
 			}
 		</script>
 	</body>
