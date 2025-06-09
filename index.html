@@ -3,6 +3,7 @@
 	<head>
 		<meta charset="UTF-8" />
 		<title>Debrid Media Manager Hash List</title>
+		<script src="api-manager.js"></script>
 		<style>
 			body {
 				margin: 0;
@@ -11,11 +12,12 @@
 				font-family: sans-serif;
 			}
 			#panel {
-				height: 50px;
+				height: 80px;
 				background-color: #f2f2f2;
 				display: flex;
 				align-items: center;
 				padding: 0 10px;
+				flex-wrap: wrap;
 			}
 
 			#panel #currentPath {
@@ -24,39 +26,550 @@
 				overflow: hidden;
 				text-overflow: ellipsis;
 				margin-right: 10px;
+				min-width: 200px;
 			}
 
 			#panel button {
 				margin-right: 10px;
+				margin-bottom: 5px;
+			}
+
+			#search-container {
+				display: flex;
+				align-items: center;
+				margin-right: 15px;
+				margin-bottom: 5px;
+			}
+
+			#search-input {
+				padding: 5px 10px;
+				border: 1px solid #ccc;
+				border-radius: 4px;
+				margin-right: 5px;
+				min-width: 200px;
+			}
+
+			#search-btn {
+				padding: 5px 15px;
+				background-color: #007bff;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+
+			#search-btn:hover {
+				background-color: #0056b3;
+			}
+
+			#settings-btn {
+				padding: 5px 15px;
+				background-color: #28a745;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+				margin-right: 10px;
+			}
+
+			#settings-btn:hover {
+				background-color: #1e7e34;
+			}
+
+			.status-indicators {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				margin-right: 15px;
+			}
+
+			.status-indicator {
+				padding: 2px 8px;
+				border-radius: 12px;
+				font-size: 12px;
+				font-weight: bold;
+			}
+
+			.status-connected {
+				background-color: #28a745;
+				color: white;
+			}
+
+			.status-disconnected {
+				background-color: #dc3545;
+				color: white;
 			}
 
 			iframe {
 				border: none;
 				position: absolute;
-				top: 50px;
+				top: 80px;
 				left: 0;
 				width: 100%;
-				height: calc(100% - 50px);
+				height: calc(100% - 80px);
 			}
 
 			#close a {
 				font-size: xx-large;
 				text-decoration: none;
 			}
+
+			/* Modal Styles */
+			.modal {
+				display: none;
+				position: fixed;
+				z-index: 1000;
+				left: 0;
+				top: 0;
+				width: 100%;
+				height: 100%;
+				overflow: auto;
+				background-color: rgba(0,0,0,0.4);
+			}
+
+			.modal-content {
+				background-color: #fefefe;
+				margin: 5% auto;
+				padding: 20px;
+				border: 1px solid #888;
+				width: 80%;
+				max-width: 800px;
+				border-radius: 8px;
+				max-height: 80vh;
+				overflow-y: auto;
+			}
+
+			.close {
+				color: #aaa;
+				float: right;
+				font-size: 28px;
+				font-weight: bold;
+				cursor: pointer;
+			}
+
+			.close:hover {
+				color: black;
+			}
+
+			.settings-section {
+				margin-bottom: 20px;
+				padding: 15px;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+			}
+
+			.settings-section h3 {
+				margin-top: 0;
+				color: #333;
+			}
+
+			.form-group {
+				margin-bottom: 15px;
+			}
+
+			.form-group label {
+				display: block;
+				margin-bottom: 5px;
+				font-weight: bold;
+			}
+
+			.form-group input, .form-group select {
+				width: 100%;
+				padding: 8px;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+				box-sizing: border-box;
+			}
+
+			.btn {
+				padding: 8px 16px;
+				margin: 5px;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+
+			.btn-primary {
+				background-color: #007bff;
+				color: white;
+			}
+
+			.btn-success {
+				background-color: #28a745;
+				color: white;
+			}
+
+			.btn-danger {
+				background-color: #dc3545;
+				color: white;
+			}
+
+			.search-results {
+				max-height: 400px;
+				overflow-y: auto;
+				border: 1px solid #ddd;
+				margin-top: 10px;
+			}
+
+			.search-result-item {
+				padding: 10px;
+				border-bottom: 1px solid #eee;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+
+			.search-result-item:last-child {
+				border-bottom: none;
+			}
+
+			.search-result-info {
+				flex-grow: 1;
+			}
+
+			.search-result-title {
+				font-weight: bold;
+				margin-bottom: 5px;
+			}
+
+			.search-result-source {
+				color: #666;
+				font-size: 12px;
+			}
+
+			.search-result-actions {
+				display: flex;
+				gap: 5px;
+			}
+
+			.loading {
+				text-align: center;
+				padding: 20px;
+				color: #666;
+			}
+
+			.checkbox-group {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				margin-top: 10px;
+			}
+
+			.checkbox-item {
+				display: flex;
+				align-items: center;
+				margin-right: 15px;
+			}
+
+			.checkbox-item input {
+				margin-right: 5px;
+				width: auto;
+			}
+
+			.content-type-tabs {
+				display: flex;
+				margin-bottom: 15px;
+			}
+
+			.tab-button {
+				flex: 1;
+				padding: 10px;
+				background-color: #007bff;
+				color: white;
+				border: none;
+				border-radius: 4px 4px 0 0;
+				cursor: pointer;
+				text-align: center;
+			}
+
+			.tab-button:hover {
+				background-color: #0056b3;
+			}
+
+			.tab-button.active {
+				background-color: #0056b3;
+			}
+
+			.content-settings {
+				display: none;
+				padding: 15px;
+				border: 1px solid #ddd;
+				border-radius: 0 0 4px 4px;
+			}
+
+			.content-settings.active {
+				display: block;
+			}
 		</style>
 	</head>
 	<body>
 		<div id="panel">
 			<span id="currentPath"></span>
+			
+			<div id="search-container">
+				<input type="text" id="search-input" placeholder="Search all hash lists...">
+				<button id="search-btn">Search</button>
+			</div>
+
+			<div class="status-indicators">
+				<span id="realdebrid-status" class="status-indicator status-disconnected">RD: Disconnected</span>
+				<span id="trakt-status" class="status-indicator status-disconnected">Trakt: Disconnected</span>
+			</div>
+
+			<button id="settings-btn">⚙️ Settings</button>
 			<button id="allHashlistsButton">All hash lists</button>
 			<button id="previousButton">Previous hash list</button>
 			<button id="randomButton">Random hash list</button>
 			<button id="nextButton">Next hash list</button>
 			<span id="close"><a href="https://debridmediamanager.com/">[X]</a></span>
 		</div>
+
 		<iframe src=""></iframe>
 
+		<!-- Settings Modal -->
+		<div id="settingsModal" class="modal">
+			<div class="modal-content">
+				<span class="close">&times;</span>
+				<h2>Settings</h2>
+
+				<!-- Real-Debrid Settings -->
+				<div class="settings-section">
+					<h3>🔴 Real-Debrid Configuration</h3>
+					<div class="form-group">
+						<label for="rd-api-key">API Key:</label>
+						<input type="password" id="rd-api-key" placeholder="Enter your Real-Debrid API key">
+						<small>Find your API key at <a href="https://real-debrid.com/apitoken" target="_blank">https://real-debrid.com/apitoken</a></small>
+					</div>
+					<div class="form-group">
+						<button class="btn btn-primary" onclick="testRealDebridConnection()">Test Connection</button>
+						<button class="btn btn-success" onclick="saveRealDebridSettings()">Save</button>
+					</div>
+				</div>
+
+				<!-- Trakt Settings -->
+				<div class="settings-section">
+					<h3>📺 Trakt Configuration</h3>
+					<div class="form-group">
+						<button class="btn btn-primary" onclick="connectTrakt()" id="trakt-connect-btn">Connect to Trakt</button>
+						<button class="btn btn-danger" onclick="disconnectTrakt()" id="trakt-disconnect-btn" style="display: none;">Disconnect</button>
+					</div>
+					<div id="trakt-status-info"></div>
+				</div>
+
+				<!-- Auto-Add Settings -->
+				<div class="settings-section">
+					<h3>🤖 Auto-Add Configuration</h3>
+					<div class="form-group">
+						<label>
+							<input type="checkbox" id="auto-add-movies"> Auto-add movies from Trakt watchlist to Real-Debrid
+						</label>
+					</div>
+					<div class="form-group">
+						<label>
+							<input type="checkbox" id="auto-add-shows"> Auto-add TV shows from Trakt watchlist to Real-Debrid
+						</label>
+					</div>
+					<div class="form-group">
+						<button class="btn btn-success" onclick="runAutoAdd()">Run Auto-Add Now</button>
+					</div>
+				</div>
+
+				<!-- Content Type Tabs -->
+				<div class="settings-section">
+					<h3>⚙️ Content Preferences</h3>
+					<div class="content-type-tabs">
+						<button class="tab-button active" onclick="switchContentTab('movies')">🎬 Movies</button>
+						<button class="tab-button" onclick="switchContentTab('shows')">📺 TV Shows</button>
+					</div>
+
+					<!-- Movies Settings -->
+					<div id="movies-settings" class="content-settings active">
+						<h4>Movie Preferences</h4>
+						<div class="form-group">
+							<label for="movie-quality-preference">Preferred Quality:</label>
+							<select id="movie-quality-preference">
+								<option value="2160p">4K (2160p)</option>
+								<option value="1080p" selected>1080p</option>
+								<option value="720p">720p</option>
+								<option value="480p">480p</option>
+							</select>
+						</div>
+						<div class="form-group">
+							<label>File Type Preferences:</label>
+							<div class="checkbox-group">
+								<div class="checkbox-item">
+									<input type="checkbox" id="movie-prefer-remux" checked>
+									<label for="movie-prefer-remux">REMUX</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="movie-prefer-bluray" checked>
+									<label for="movie-prefer-bluray">BluRay</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="movie-prefer-web" checked>
+									<label for="movie-prefer-web">WEB-DL/WEBRip</label>
+								</div>
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="movie-hdr-preference">HDR Preference:</label>
+							<select id="movie-hdr-preference">
+								<option value="any">Any (HDR or SDR)</option>
+								<option value="sdr-only">SDR Only (No HDR)</option>
+								<option value="hdr-preferred">HDR Preferred</option>
+								<option value="hdr-only">HDR Only</option>
+							</select>
+						</div>
+						<div class="form-group">
+							<label for="movie-max-size">Maximum file size:</label>
+							<input type="text" id="movie-max-size" placeholder="e.g., 50GB, 100GB">
+						</div>
+						<div class="form-group">
+							<label>Upgrade Settings:</label>
+							<div class="checkbox-group">
+								<div class="checkbox-item">
+									<input type="checkbox" id="movie-auto-upgrade">
+									<label for="movie-auto-upgrade">Auto-upgrade movies</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="movie-allow-higher-quality">
+									<label for="movie-allow-higher-quality">Allow higher quality</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="movie-delete-old">
+									<label for="movie-delete-old">Delete old after upgrade</label>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- TV Shows Settings -->
+					<div id="shows-settings" class="content-settings">
+						<h4>TV Show Preferences</h4>
+						<div class="form-group">
+							<label for="show-quality-preference">Preferred Quality:</label>
+							<select id="show-quality-preference">
+								<option value="2160p">4K (2160p)</option>
+								<option value="1080p" selected>1080p</option>
+								<option value="720p">720p</option>
+								<option value="480p">480p</option>
+							</select>
+						</div>
+						<div class="form-group">
+							<label>File Type Preferences:</label>
+							<div class="checkbox-group">
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-prefer-remux">
+									<label for="show-prefer-remux">REMUX</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-prefer-bluray">
+									<label for="show-prefer-bluray">BluRay</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-prefer-web" checked>
+									<label for="show-prefer-web">WEB-DL/WEBRip</label>
+								</div>
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="show-hdr-preference">HDR Preference:</label>
+							<select id="show-hdr-preference">
+								<option value="any">Any (HDR or SDR)</option>
+								<option value="sdr-only" selected>SDR Only (No HDR)</option>
+								<option value="hdr-preferred">HDR Preferred</option>
+								<option value="hdr-only">HDR Only</option>
+							</select>
+						</div>
+						<div class="form-group">
+							<label for="show-max-size">Maximum file size per episode:</label>
+							<input type="text" id="show-max-size" placeholder="e.g., 5GB, 10GB">
+						</div>
+						<div class="form-group">
+							<label>Upgrade Settings:</label>
+							<div class="checkbox-group">
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-auto-upgrade">
+									<label for="show-auto-upgrade">Auto-upgrade shows</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-allow-higher-quality">
+									<label for="show-allow-higher-quality">Allow higher quality</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-delete-old">
+									<label for="show-delete-old">Delete old after upgrade</label>
+								</div>
+							</div>
+						</div>
+						<div class="form-group">
+							<label>TV Show Specific Options:</label>
+							<div class="checkbox-group">
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-complete-seasons" checked>
+									<label for="show-complete-seasons">Prefer complete seasons</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-next-episodes" checked>
+									<label for="show-next-episodes">Auto-add next episodes</label>
+								</div>
+								<div class="checkbox-item">
+									<input type="checkbox" id="show-all-seasons">
+									<label for="show-all-seasons">Add all seasons for new shows</label>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Global Quality Upgrade Settings -->
+				<div class="settings-section">
+					<h3>📈 Global Upgrade Configuration</h3>
+					<div class="form-group">
+						<label>
+							<input type="checkbox" id="check-for-upgrades"> Check for quality upgrades during auto-add
+						</label>
+					</div>
+					<div class="form-group">
+						<label for="max-upgrade-matches">Max upgrade matches per title:</label>
+						<input type="number" id="max-upgrade-matches" value="3" min="1" max="10">
+					</div>
+					<div class="form-group">
+						<button class="btn btn-primary" onclick="checkUpgradesNow()">Check for Upgrades Now</button>
+					</div>
+				</div>
+
+				<!-- Search Settings -->
+				<div class="settings-section">
+					<h3>🔍 Search Configuration</h3>
+					<div class="form-group">
+						<label for="search-limit">Maximum search results:</label>
+						<input type="number" id="search-limit" value="50" min="10" max="200">
+					</div>
+					<div class="form-group">
+						<label>
+							<input type="checkbox" id="enable-regex" checked> Enable regex search
+						</label>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Search Results Modal -->
+		<div id="searchModal" class="modal">
+			<div class="modal-content">
+				<span class="close">&times;</span>
+				<h2>Search Results</h2>
+				<div id="search-results-container">
+					<div class="loading">Searching...</div>
+				</div>
+			</div>
+		</div>
+
 		<script>
+			// Initialize API manager
+			const apiManager = new APIManager();
+			
 			// On page load
 			window.addEventListener("load", function () {
 				let htmlFiles = [];
@@ -69,19 +582,20 @@
 				const nextButton = document.getElementById("nextButton");
 				const iframe = document.querySelector("iframe");
 
+				// Initialize components
+				initializeSettings();
+				initializeSearch();
+				initializeModals();
+
 				// Fetch contents of the GitHub API
-				fetch(
-					"https://api.github.com/repos/Zero0Q/hashlists/contents"
-				)
+				fetch("https://api.github.com/repos/Zero0Q/hashlists/contents")
 					.then((response) => response.json())
 					.then((data) => {
-						// Get all entries with "path" ending in ".html"
 						htmlFiles = data.filter(
 							(entry) => !entry.path.endsWith("index.html")
 						);
 						const randomIndex = Math.floor(Math.random() * htmlFiles.length);
 						currentIndex = randomIndex;
-						// Load the first path in the iframe
 						loadPathAtIndex(currentIndex);
 					})
 					.catch((error) => {
@@ -125,7 +639,443 @@
 						loadPathAtIndex(currentIndex);
 					}
 				});
+
+				// Global search functionality
+				function initializeSearch() {
+					const searchBtn = document.getElementById('search-btn');
+					const searchInput = document.getElementById('search-input');
+
+					searchBtn.addEventListener('click', performGlobalSearch);
+					searchInput.addEventListener('keypress', function(e) {
+						if (e.key === 'Enter') {
+							performGlobalSearch();
+						}
+					});
+				}
+
+				async function performGlobalSearch() {
+					const query = document.getElementById('search-input').value.trim();
+					if (!query) {
+						alert('Please enter a search term');
+						return;
+					}
+
+					showSearchModal();
+					const resultsContainer = document.getElementById('search-results-container');
+					resultsContainer.innerHTML = '<div class="loading">Searching all hash lists...</div>';
+
+					try {
+						const results = await searchAllHashLists(query);
+						displaySearchResults(results);
+					} catch (error) {
+						console.error('Search error:', error);
+						resultsContainer.innerHTML = '<div class="loading">Search failed. Please try again.</div>';
+					}
+				}
+
+				async function searchAllHashLists(query) {
+					const searchLimit = parseInt(document.getElementById('search-limit')?.value || '50');
+					const enableRegex = document.getElementById('enable-regex')?.checked || false;
+					const results = [];
+
+					// Create search pattern
+					let searchPattern;
+					if (enableRegex) {
+						try {
+							searchPattern = new RegExp(query, 'i');
+						} catch (e) {
+							searchPattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+						}
+					} else {
+						searchPattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+					}
+
+					// Search through each hash list
+					for (const file of htmlFiles.slice(0, Math.min(htmlFiles.length, searchLimit))) {
+						try {
+							const response = await fetch(file.download_url || `https://zero0q.github.io/hashlists/${file.path}`);
+							const html = await response.text();
+							
+							// Extract iframe src and fetch content
+							const iframeMatch = html.match(/src="([^"]+)"/);
+							if (iframeMatch) {
+								const iframeSrc = iframeMatch[1];
+								
+								// Decode the hash list content
+								const hashListContent = await fetchHashListContent(iframeSrc);
+								const matches = searchHashListContent(hashListContent, searchPattern, file.path);
+								
+								if (matches.length > 0) {
+									results.push(...matches);
+								}
+							}
+						} catch (error) {
+							console.error(`Error searching ${file.path}:`, error);
+						}
+					}
+
+					return results;
+				}
+
+				async function fetchHashListContent(iframeSrc) {
+					try {
+						// Extract the encoded content from debridmediamanager.com URL
+						const hashPart = iframeSrc.split('#')[1];
+						if (hashPart) {
+							// Try to decode the content - this might need adjustment based on actual encoding
+							try {
+								const decoded = atob(hashPart);
+								return decoded;
+							} catch (e) {
+								// If base64 doesn't work, try other decoding methods
+								console.warn('Could not decode hash content, using raw data');
+								return hashPart;
+							}
+						}
+					} catch (error) {
+						console.error('Error decoding hash list content:', error);
+					}
+					return '';
+				}
+
+				function searchHashListContent(content, pattern, source) {
+					const matches = [];
+					const lines = content.split('\n');
+					
+					for (let i = 0; i < lines.length; i++) {
+						const line = lines[i].trim();
+						if (line && pattern.test(line)) {
+							// Check if it's a magnet link or contains useful metadata
+							const isMagnet = apiManager.isMagnetLink(line);
+							const metadata = isMagnet ? apiManager.extractMetadataFromMagnet(line) : { title: line };
+							
+							matches.push({
+								title: metadata.title || line,
+								source: source,
+								lineNumber: i + 1,
+								content: line,
+								isMagnet: isMagnet,
+								quality: metadata.quality || 'Unknown',
+								size: metadata.size || 'Unknown',
+								type: metadata.type || 'Unknown'
+							});
+						}
+					}
+					
+					return matches;
+				}
+
+				function displaySearchResults(results) {
+					const container = document.getElementById('search-results-container');
+					
+					if (results.length === 0) {
+						container.innerHTML = '<div class="loading">No results found.</div>';
+						return;
+					}
+
+					const html = results.map(result => `
+						<div class="search-result-item">
+							<div class="search-result-info">
+								<div class="search-result-title">${escapeHtml(result.title)}</div>
+								<div class="search-result-source">
+									Source: ${result.source} (Line ${result.lineNumber}) | 
+									Quality: ${result.quality} | 
+									Size: ${result.size} | 
+									Type: ${result.type}
+								</div>
+							</div>
+							<div class="search-result-actions">
+								${result.isMagnet ? `<button class="btn btn-primary" onclick="addToRealDebrid('${escapeHtml(result.content)}')">Add to RD</button>` : ''}
+								<button class="btn btn-success" onclick="addToTraktWatchlist('${escapeHtml(result.title)}', '${result.type}')">Add to Trakt</button>
+							</div>
+						</div>
+					`).join('');
+
+					container.innerHTML = `
+						<div style="margin-bottom: 15px;">
+							<strong>Found ${results.length} results</strong>
+							${results.filter(r => r.isMagnet).length > 0 ? `
+								<div style="margin-top: 10px;">
+									<button class="btn btn-success" onclick="addAllToRealDebrid()">Add All Magnets to Real-Debrid</button>
+								</div>
+							` : ''}
+						</div>
+						<div class="search-results">${html}</div>
+					`;
+
+					// Store results for bulk operations
+					window.currentSearchResults = results.filter(r => r.isMagnet);
+				}
+
+				function escapeHtml(text) {
+					const div = document.createElement('div');
+					div.textContent = text;
+					return div.innerHTML;
+				}
+
+				// Modal management and settings
+				// ...existing modal and settings functions...
+
+				// Make functions globally available
+				window.testRealDebridConnection = testRealDebridConnection;
+				window.saveRealDebridSettings = saveRealDebridSettings;
+				window.connectTrakt = connectTrakt;
+				window.disconnectTrakt = disconnectTrakt;
+				window.runAutoAdd = runAutoAdd;
+				window.addToRealDebrid = addToRealDebrid;
+				window.addToTraktWatchlist = addToTraktWatchlist;
+				window.addAllToRealDebrid = addAllToRealDebrid;
 			});
+
+			// Enhanced Real-Debrid functions using API manager
+			async function testRealDebridConnection() {
+				const apiKey = document.getElementById('rd-api-key').value.trim();
+				if (!apiKey) {
+					alert('Please enter your Real-Debrid API key');
+					return;
+				}
+
+				const result = await apiManager.testRealDebridConnection(apiKey);
+				
+				if (result.success) {
+					alert(`Connection successful! Welcome, ${result.data.username}. Premium days remaining: ${result.data.premium}`);
+				} else {
+					alert(`Connection failed: ${result.error}`);
+				}
+			}
+
+			function saveRealDebridSettings() {
+				const apiKey = document.getElementById('rd-api-key').value.trim();
+				
+				if (apiKey) {
+					localStorage.setItem('rd-api-key', apiKey);
+					updateStatusIndicators();
+				} else {
+					localStorage.removeItem('rd-api-key');
+					updateStatusIndicators();
+				}
+
+				// Save basic settings
+				localStorage.setItem('auto-add-movies', document.getElementById('auto-add-movies').checked);
+				localStorage.setItem('auto-add-shows', document.getElementById('auto-add-shows').checked);
+				localStorage.setItem('search-limit', document.getElementById('search-limit').value);
+				localStorage.setItem('enable-regex', document.getElementById('enable-regex').checked);
+				
+				// Save movie preferences
+				const moviePrefs = getMoviePreferences();
+				localStorage.setItem('movie-preferences', JSON.stringify(moviePrefs));
+				
+				// Save show preferences
+				const showPrefs = getShowPreferences();
+				localStorage.setItem('show-preferences', JSON.stringify(showPrefs));
+
+				// Save global upgrade settings
+				localStorage.setItem('check-for-upgrades', document.getElementById('check-for-upgrades').checked);
+				localStorage.setItem('max-upgrade-matches', document.getElementById('max-upgrade-matches').value);
+
+				alert('Settings saved successfully!');
+			}
+
+			function loadSettings() {
+				const rdApiKey = localStorage.getItem('rd-api-key');
+				
+				if (rdApiKey) {
+					document.getElementById('rd-api-key').value = rdApiKey;
+				}
+				
+				// Load basic settings
+				document.getElementById('auto-add-movies').checked = localStorage.getItem('auto-add-movies') === 'true';
+				document.getElementById('auto-add-shows').checked = localStorage.getItem('auto-add-shows') === 'true';
+				document.getElementById('search-limit').value = localStorage.getItem('search-limit') || '50';
+				document.getElementById('enable-regex').checked = localStorage.getItem('enable-regex') !== 'false';
+				
+				// Load movie preferences
+				const moviePrefs = JSON.parse(localStorage.getItem('movie-preferences') || '{}');
+				document.getElementById('movie-quality-preference').value = moviePrefs.quality || '1080p';
+				document.getElementById('movie-hdr-preference').value = moviePrefs.hdrPreference || 'any';
+				document.getElementById('movie-max-size').value = moviePrefs.maxSize || '';
+				document.getElementById('movie-auto-upgrade').checked = moviePrefs.autoUpgrade || false;
+				document.getElementById('movie-allow-higher-quality').checked = moviePrefs.allowHigherQuality || false;
+				document.getElementById('movie-delete-old').checked = moviePrefs.deleteOldAfterUpgrade || false;
+				
+				// Load movie file types
+				const movieFileTypes = moviePrefs.fileTypes || ['remux', 'bluray', 'web'];
+				document.getElementById('movie-prefer-remux').checked = movieFileTypes.includes('remux');
+				document.getElementById('movie-prefer-bluray').checked = movieFileTypes.includes('bluray');
+				document.getElementById('movie-prefer-web').checked = movieFileTypes.includes('web');
+
+				// Load show preferences
+				const showPrefs = JSON.parse(localStorage.getItem('show-preferences') || '{}');
+				document.getElementById('show-quality-preference').value = showPrefs.quality || '1080p';
+				document.getElementById('show-hdr-preference').value = showPrefs.hdrPreference || 'sdr-only';
+				document.getElementById('show-max-size').value = showPrefs.maxSize || '';
+				document.getElementById('show-auto-upgrade').checked = showPrefs.autoUpgrade || false;
+				document.getElementById('show-allow-higher-quality').checked = showPrefs.allowHigherQuality || false;
+				document.getElementById('show-delete-old').checked = showPrefs.deleteOldAfterUpgrade || false;
+				document.getElementById('show-complete-seasons').checked = showPrefs.completeSeasons !== false;
+				document.getElementById('show-next-episodes').checked = showPrefs.nextEpisodes !== false;
+				document.getElementById('show-all-seasons').checked = showPrefs.allSeasons || false;
+				
+				// Load show file types
+				const showFileTypes = showPrefs.fileTypes || ['web'];
+				document.getElementById('show-prefer-remux').checked = showFileTypes.includes('remux');
+				document.getElementById('show-prefer-bluray').checked = showFileTypes.includes('bluray');
+				document.getElementById('show-prefer-web').checked = showFileTypes.includes('web');
+
+				// Load global upgrade settings
+				document.getElementById('check-for-upgrades').checked = localStorage.getItem('check-for-upgrades') === 'true';
+				document.getElementById('max-upgrade-matches').value = localStorage.getItem('max-upgrade-matches') || '3';
+			}
+
+			// Enhanced runAutoAdd with separate movie/show preferences
+			async function runAutoAdd() {
+				const rdApiKey = localStorage.getItem('rd-api-key');
+				const traktToken = localStorage.getItem('trakt-token');
+				
+				if (!rdApiKey || !traktToken) {
+					alert('Please configure both Real-Debrid and Trakt connections first');
+					return;
+				}
+
+				const moviePreferences = getUpgradePreferences('movie');
+				const showPreferences = getUpgradePreferences('tv');
+
+				const globalSettings = {
+					autoAddMovies: document.getElementById('auto-add-movies').checked,
+					autoAddShows: document.getElementById('auto-add-shows').checked,
+					checkForUpgrades: document.getElementById('check-for-upgrades').checked
+				};
+
+				const loadingDiv = document.createElement('div');
+				loadingDiv.innerHTML = '<div class="loading">Running auto-add process...</div>';
+				loadingDiv.style.position = 'fixed';
+				loadingDiv.style.top = '50%';
+				loadingDiv.style.left = '50%';
+				loadingDiv.style.transform = 'translate(-50%, -50%)';
+				loadingDiv.style.background = 'white';
+				loadingDiv.style.padding = '20px';
+				loadingDiv.style.border = '1px solid #ccc';
+				loadingDiv.style.borderRadius = '8px';
+				loadingDiv.style.zIndex = '2000';
+				document.body.appendChild(loadingDiv);
+
+				try {
+					const results = await apiManager.runAutoAddProcessSeparate(
+						rdApiKey, 
+						traktToken, 
+						moviePreferences, 
+						showPreferences, 
+						globalSettings
+					);
+					
+					let message = `Auto-add completed!\n\n`;
+					message += `Movies processed: ${results.moviesProcessed}\n`;
+					message += `Shows processed: ${results.showsProcessed}\n`;
+					message += `Movies added to Real-Debrid: ${results.moviesAdded}\n`;
+					message += `Show episodes added to Real-Debrid: ${results.showsAdded}\n`;
+					
+					if (globalSettings.checkForUpgrades) {
+						message += `\nUpgrade Check:\n`;
+						message += `Movie upgrades found: ${results.movieUpgradesFound}\n`;
+						message += `Show upgrades found: ${results.showUpgradesFound}\n`;
+						message += `Total upgrades added: ${results.upgradesAdded}\n`;
+					}
+					
+					if (results.errors.length > 0) {
+						message += `\nErrors (first 5):\n${results.errors.slice(0, 5).join('\n')}`;
+						if (results.errors.length > 5) {
+							message += `\n... and ${results.errors.length - 5} more errors`;
+						}
+					}
+					
+					alert(message);
+				} catch (error) {
+					alert(`Auto-add failed: ${error.message}`);
+				} finally {
+					document.body.removeChild(loadingDiv);
+				}
+			}
+
+			// Add the missing switchContentTab function
+			function switchContentTab(type) {
+				const moviesSettings = document.getElementById('movies-settings');
+				const showsSettings = document.getElementById('shows-settings');
+				const tabButtons = document.querySelectorAll('.tab-button');
+
+				// Remove active class from all tabs and content
+				tabButtons.forEach(btn => btn.classList.remove('active'));
+				moviesSettings.classList.remove('active');
+				showsSettings.classList.remove('active');
+
+				if (type === 'movies') {
+					moviesSettings.classList.add('active');
+					tabButtons[0].classList.add('active');
+				} else {
+					showsSettings.classList.add('active');
+					tabButtons[1].classList.add('active');
+				}
+			}
+
+			// Add the checkUpgradesNow function to global scope
+			window.checkUpgradesNow = checkUpgradesNow;
+			window.switchContentTab = switchContentTab;
+
+			function getMoviePreferences() {
+				const movieFileTypes = [];
+				if (document.getElementById('movie-prefer-remux').checked) movieFileTypes.push('remux');
+				if (document.getElementById('movie-prefer-bluray').checked) movieFileTypes.push('bluray');
+				if (document.getElementById('movie-prefer-web').checked) movieFileTypes.push('web');
+
+				return {
+					quality: document.getElementById('movie-quality-preference').value,
+					fileTypes: movieFileTypes,
+					hdrPreference: document.getElementById('movie-hdr-preference').value,
+					maxSize: document.getElementById('movie-max-size').value,
+					autoUpgrade: document.getElementById('movie-auto-upgrade').checked,
+					allowHigherQuality: document.getElementById('movie-allow-higher-quality').checked,
+					deleteOldAfterUpgrade: document.getElementById('movie-delete-old').checked
+				};
+			}
+
+			function getShowPreferences() {
+				const showFileTypes = [];
+				if (document.getElementById('show-prefer-remux').checked) showFileTypes.push('remux');
+				if (document.getElementById('show-prefer-bluray').checked) showFileTypes.push('bluray');
+				if (document.getElementById('show-prefer-web').checked) showFileTypes.push('web');
+
+				return {
+					quality: document.getElementById('show-quality-preference').value,
+					fileTypes: showFileTypes,
+					hdrPreference: document.getElementById('show-hdr-preference').value,
+					maxSize: document.getElementById('show-max-size').value,
+					autoUpgrade: document.getElementById('show-auto-upgrade').checked,
+					allowHigherQuality: document.getElementById('show-allow-higher-quality').checked,
+					deleteOldAfterUpgrade: document.getElementById('show-delete-old').checked,
+					completeSeasons: document.getElementById('show-complete-seasons').checked,
+					nextEpisodes: document.getElementById('show-next-episodes').checked,
+					allSeasons: document.getElementById('show-all-seasons').checked
+				};
+			}
+
+			function getUpgradePreferences(contentType = null) {
+				const globalPrefs = {
+					checkForUpgrades: document.getElementById('check-for-upgrades').checked,
+					maxUpgradeMatches: parseInt(document.getElementById('max-upgrade-matches').value) || 3
+				};
+
+				if (contentType === 'movie') {
+					return { ...globalPrefs, ...getMoviePreferences() };
+				} else if (contentType === 'tv') {
+					return { ...globalPrefs, ...getShowPreferences() };
+				} else {
+					// Return both for mixed content
+					return {
+						...globalPrefs,
+						movies: getMoviePreferences(),
+						shows: getShowPreferences()
+					};
+				}
+			}
 		</script>
 	</body>
 </html>
