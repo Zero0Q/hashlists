@@ -1242,29 +1242,62 @@
 				modal.className = 'modal';
 				modal.style.display = 'block';
 				modal.innerHTML = `
-					<div class="modal-content" style="max-width: 600px;">
+					<div class="modal-content" style="max-width: 700px;">
 						<span class="close" onclick="this.closest('.modal').remove()">&times;</span>
 						<h2>🔗 Connect to Trakt</h2>
+						
+						<div style="padding: 20px; background: #fff3cd; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ffc107;">
+							<h3>⚠️ First Time Setup Required</h3>
+							<p>Before you can connect, you need to create a Trakt application:</p>
+							<ol style="text-align: left; margin: 10px 0;">
+								<li>Go to <a href="https://trakt.tv/oauth/applications" target="_blank">https://trakt.tv/oauth/applications</a></li>
+								<li>Click <strong>"New Application"</strong></li>
+								<li>Fill out the form with these settings:
+									<ul style="margin: 10px 0; padding-left: 20px;">
+										<li><strong>Name:</strong> Hash List Manager (or any name you prefer)</li>
+										<li><strong>Description:</strong> Real-Debrid Hash List Management Tool</li>
+										<li><strong>Redirect URI:</strong> <code>${window.location.origin + window.location.pathname}</code></li>
+										<li><strong>Permissions:</strong> Check all boxes (or at least "Read" permissions)</li>
+									</ul>
+								</li>
+								<li>Click <strong>"Save App"</strong></li>
+								<li>Copy the <strong>Client ID</strong> and paste it in the Settings → Trakt Configuration</li>
+								<li>Come back here and try connecting again</li>
+							</ol>
+						</div>
+
 						<div style="padding: 20px; background: #f8f9fa; border-radius: 8px; margin: 15px 0;">
 							<h3>Step 1: Authorize Application</h3>
+							<p><strong>Current Client ID:</strong> <code>${clientId}</code></p>
 							<p>Click the button below to authorize this application with Trakt:</p>
-							<a href="https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(window.location.origin + window.location.pathname)}" 
+							<a href="https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(window.location.origin + window.location.pathname)}&state=trakt_auth_${Date.now()}" 
 							   target="_blank" 
 							   class="btn btn-primary" 
 							   style="display: inline-block; text-decoration: none; padding: 10px 20px; margin: 10px 0;">
 								🚀 Authorize with Trakt
 							</a>
+							<p><small>If this doesn't work, make sure you've created the Trakt application first (see above).</small></p>
 						</div>
 						<div style="padding: 20px; background: #e9ecef; border-radius: 8px; margin: 15px 0;">
 							<h3>Step 2: Get Authorization Code</h3>
 							<p>After authorizing, you'll be redirected back here with a <code>code</code> parameter in the URL.</p>
+							<p><strong>If you get an error or no code:</strong></p>
+							<ul style="text-align: left; margin: 10px 0;">
+								<li>Check that your Trakt application's Redirect URI exactly matches: <code>${window.location.origin + window.location.pathname}</code></li>
+								<li>Make sure the Client ID is correct</li>
+								<li>Try refreshing this page and attempting again</li>
+							</ul>
 							<p>Copy the authorization code from the URL and paste it below:</p>
 							<input type="text" id="manual-auth-code" placeholder="Paste authorization code here..." style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px;">
 							<button onclick="exchangeManualCode()" class="btn btn-success">Connect with Code</button>
 						</div>
-						<div style="padding: 15px; background: #fff3cd; border-radius: 8px; margin: 15px 0; font-size: 14px;">
-							<strong>Note:</strong> Due to browser security restrictions, the automatic OAuth flow doesn't work on GitHub Pages. 
-							This manual process ensures a secure connection to your Trakt account.
+						<div style="padding: 15px; background: #d1ecf1; border-radius: 8px; margin: 15px 0; font-size: 14px; border-left: 4px solid #bee5eb;">
+							<strong>Troubleshooting:</strong>
+							<ul style="text-align: left; margin: 5px 0;">
+								<li>If you get "invalid_client" error: Double-check your Client ID</li>
+								<li>If you get "redirect_uri_mismatch": Make sure the Redirect URI in your Trakt app exactly matches the URL shown above</li>
+								<li>If the page doesn't redirect: Check that your Trakt application is set to "Public" or has the correct permissions</li>
+							</ul>
 						</div>
 					</div>
 				`;
@@ -1274,10 +1307,13 @@
 				const urlParams = new URLSearchParams(window.location.search);
 				const code = urlParams.get('code');
 				if (code) {
-					document.getElementById('manual-auth-code').value = code;
-					showToast('Authorization code detected in URL! Click "Connect with Code" to complete setup.', 'success');
-					// Clean up URL
-					window.history.replaceState({}, document.title, window.location.pathname);
+					const authCodeInput = document.getElementById('manual-auth-code');
+					if (authCodeInput) {
+						authCodeInput.value = code;
+						showToast('✅ Authorization code detected in URL! Click "Connect with Code" to complete setup.', 'success');
+						// Clean up URL
+						window.history.replaceState({}, document.title, window.location.pathname);
+					}
 				}
 			}
 
