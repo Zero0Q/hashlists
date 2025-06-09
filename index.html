@@ -814,18 +814,283 @@
 				}
 
 				// Modal management and settings
-				// ...existing modal and settings functions...
+				function initializeModals() {
+					const settingsModal = document.getElementById('settingsModal');
+					const searchModal = document.getElementById('searchModal');
+					const settingsBtn = document.getElementById('settings-btn');
+
+					settingsBtn.addEventListener('click', () => {
+						settingsModal.style.display = 'block';
+					});
+
+					// Close modals when clicking the X or outside
+					document.querySelectorAll('.close').forEach(closeBtn => {
+						closeBtn.addEventListener('click', function() {
+							this.closest('.modal').style.display = 'none';
+						});
+					});
+
+					window.addEventListener('click', function(event) {
+						if (event.target.classList.contains('modal')) {
+							event.target.style.display = 'none';
+						}
+					});
+				}
+
+				function showSearchModal() {
+					document.getElementById('searchModal').style.display = 'block';
+				}
+
+				// Settings management
+				function initializeSettings() {
+					loadSettings();
+					updateStatusIndicators();
+				}
+
+				function loadSettings() {
+					const rdApiKey = localStorage.getItem('rd-api-key');
+					
+					if (rdApiKey) {
+						document.getElementById('rd-api-key').value = rdApiKey;
+					}
+					
+					// Load basic settings
+					document.getElementById('auto-add-movies').checked = localStorage.getItem('auto-add-movies') === 'true';
+					document.getElementById('auto-add-shows').checked = localStorage.getItem('auto-add-shows') === 'true';
+					document.getElementById('search-limit').value = localStorage.getItem('search-limit') || '50';
+					document.getElementById('enable-regex').checked = localStorage.getItem('enable-regex') !== 'false';
+					
+					// Load movie preferences
+					const moviePrefs = JSON.parse(localStorage.getItem('movie-preferences') || '{}');
+					document.getElementById('movie-quality-preference').value = moviePrefs.quality || '1080p';
+					document.getElementById('movie-hdr-preference').value = moviePrefs.hdrPreference || 'any';
+					document.getElementById('movie-max-size').value = moviePrefs.maxSize || '';
+					document.getElementById('movie-auto-upgrade').checked = moviePrefs.autoUpgrade || false;
+					document.getElementById('movie-allow-higher-quality').checked = moviePrefs.allowHigherQuality || false;
+					document.getElementById('movie-delete-old').checked = moviePrefs.deleteOldAfterUpgrade || false;
+					
+					// Load movie file types
+					const movieFileTypes = moviePrefs.fileTypes || ['remux', 'bluray', 'web'];
+					document.getElementById('movie-prefer-remux').checked = movieFileTypes.includes('remux');
+					document.getElementById('movie-prefer-bluray').checked = movieFileTypes.includes('bluray');
+					document.getElementById('movie-prefer-web').checked = movieFileTypes.includes('web');
+
+					// Load show preferences
+					const showPrefs = JSON.parse(localStorage.getItem('show-preferences') || '{}');
+					document.getElementById('show-quality-preference').value = showPrefs.quality || '1080p';
+					document.getElementById('show-hdr-preference').value = showPrefs.hdrPreference || 'sdr-only';
+					document.getElementById('show-max-size').value = showPrefs.maxSize || '';
+					document.getElementById('show-auto-upgrade').checked = showPrefs.autoUpgrade || false;
+					document.getElementById('show-allow-higher-quality').checked = showPrefs.allowHigherQuality || false;
+					document.getElementById('show-delete-old').checked = showPrefs.deleteOldAfterUpgrade || false;
+					document.getElementById('show-complete-seasons').checked = showPrefs.completeSeasons !== false;
+					document.getElementById('show-next-episodes').checked = showPrefs.nextEpisodes !== false;
+					document.getElementById('show-all-seasons').checked = showPrefs.allSeasons || false;
+					
+					// Load show file types
+					const showFileTypes = showPrefs.fileTypes || ['web'];
+					document.getElementById('show-prefer-remux').checked = showFileTypes.includes('remux');
+					document.getElementById('show-prefer-bluray').checked = showFileTypes.includes('bluray');
+					document.getElementById('show-prefer-web').checked = showFileTypes.includes('web');
+
+					// Load global upgrade settings
+					document.getElementById('check-for-upgrades').checked = localStorage.getItem('check-for-upgrades') === 'true';
+					document.getElementById('max-upgrade-matches').value = localStorage.getItem('max-upgrade-matches') || '3';
+				}
+
+				function updateStatusIndicators() {
+					const rdStatus = document.getElementById('realdebrid-status');
+					const traktStatus = document.getElementById('trakt-status');
+					
+					const rdApiKey = localStorage.getItem('rd-api-key');
+					const traktToken = localStorage.getItem('trakt-token');
+					
+					if (rdApiKey) {
+						rdStatus.textContent = 'RD: Connected';
+						rdStatus.className = 'status-indicator status-connected';
+					} else {
+						rdStatus.textContent = 'RD: Disconnected';
+						rdStatus.className = 'status-indicator status-disconnected';
+					}
+					
+					if (traktToken) {
+						traktStatus.textContent = 'Trakt: Connected';
+						traktStatus.className = 'status-indicator status-connected';
+					} else {
+						traktStatus.textContent = 'Trakt: Disconnected';
+						traktStatus.className = 'status-indicator status-disconnected';
+					}
+				}
 
 				// Make functions globally available
-				window.testRealDebridConnection = testRealDebridConnection;
-				window.saveRealDebridSettings = saveRealDebridSettings;
-				window.connectTrakt = connectTrakt;
-				window.disconnectTrakt = disconnectTrakt;
-				window.runAutoAdd = runAutoAdd;
-				window.addToRealDebrid = addToRealDebrid;
-				window.addToTraktWatchlist = addToTraktWatchlist;
-				window.addAllToRealDebrid = addAllToRealDebrid;
+				window.initializeSettings = initializeSettings;
+				window.loadSettings = loadSettings;
+				window.updateStatusIndicators = updateStatusIndicators;
+				window.initializeSearch = initializeSearch;
+				window.initializeModals = initializeModals;
+				window.showSearchModal = showSearchModal;
+				window.performGlobalSearch = performGlobalSearch;
+				window.searchAllHashLists = searchAllHashLists;
+				window.fetchHashListContent = fetchHashListContent;
+				window.searchHashListContent = searchHashListContent;
+				window.displaySearchResults = displaySearchResults;
+				window.escapeHtml = escapeHtml;
+
+				// Navigation buttons
+				allHashlistsButton.addEventListener("click", function () {
+					// Show all hash lists - could navigate to a directory view or list
+					window.open("https://github.com/Zero0Q/hashlists", "_blank");
+				});
+
+				previousButton.addEventListener("click", function () {
+					if (currentIndex > 0) {
+						currentIndex--;
+						loadPathAtIndex(currentIndex);
+					}
+				});
+
+				randomButton.addEventListener("click", function () {
+					const randomIndex = Math.floor(Math.random() * htmlFiles.length);
+					currentIndex = randomIndex;
+					loadPathAtIndex(currentIndex);
+				});
+
+				nextButton.addEventListener("click", function () {
+					if (currentIndex < htmlFiles.length - 1) {
+						currentIndex++;
+						loadPathAtIndex(currentIndex);
+					}
+				});
 			});
+
+			// Preference functions
+			function getMoviePreferences() {
+				const movieFileTypes = [];
+				if (document.getElementById('movie-prefer-remux').checked) movieFileTypes.push('remux');
+				if (document.getElementById('movie-prefer-bluray').checked) movieFileTypes.push('bluray');
+				if (document.getElementById('movie-prefer-web').checked) movieFileTypes.push('web');
+
+				return {
+					quality: document.getElementById('movie-quality-preference').value,
+					fileTypes: movieFileTypes,
+					hdrPreference: document.getElementById('movie-hdr-preference').value,
+					maxSize: document.getElementById('movie-max-size').value,
+					autoUpgrade: document.getElementById('movie-auto-upgrade').checked,
+					allowHigherQuality: document.getElementById('movie-allow-higher-quality').checked,
+					deleteOldAfterUpgrade: document.getElementById('movie-delete-old').checked
+				};
+			}
+
+			function getShowPreferences() {
+				const showFileTypes = [];
+				if (document.getElementById('show-prefer-remux').checked) showFileTypes.push('remux');
+				if (document.getElementById('show-prefer-bluray').checked) showFileTypes.push('bluray');
+				if (document.getElementById('show-prefer-web').checked) showFileTypes.push('web');
+
+				return {
+					quality: document.getElementById('show-quality-preference').value,
+					fileTypes: showFileTypes,
+					hdrPreference: document.getElementById('show-hdr-preference').value,
+					maxSize: document.getElementById('show-max-size').value,
+					autoUpgrade: document.getElementById('show-auto-upgrade').checked,
+					allowHigherQuality: document.getElementById('show-allow-higher-quality').checked,
+					deleteOldAfterUpgrade: document.getElementById('show-delete-old').checked,
+					completeSeasons: document.getElementById('show-complete-seasons').checked,
+					nextEpisodes: document.getElementById('show-next-episodes').checked,
+					allSeasons: document.getElementById('show-all-seasons').checked
+				};
+			}
+
+			function getUpgradePreferences(contentType = null) {
+				const globalPrefs = {
+					checkForUpgrades: document.getElementById('check-for-upgrades').checked,
+					maxUpgradeMatches: parseInt(document.getElementById('max-upgrade-matches').value) || 3
+				};
+
+				if (contentType === 'movie') {
+					return { ...globalPrefs, ...getMoviePreferences() };
+				} else if (contentType === 'tv') {
+					return { ...globalPrefs, ...getShowPreferences() };
+				} else {
+					// Return both for mixed content
+					return {
+						...globalPrefs,
+						movies: getMoviePreferences(),
+						shows: getShowPreferences()
+					};
+				}
+			}
+
+			// Quality upgrade functions
+			async function checkUpgradesNow() {
+				const rdApiKey = localStorage.getItem('rd-api-key');
+				if (!rdApiKey) {
+					alert('Please configure your Real-Debrid API key first');
+					return;
+				}
+
+				const preferences = getUpgradePreferences();
+				
+				const loadingDiv = document.createElement('div');
+				loadingDiv.innerHTML = '<div class="loading">Checking for quality upgrades...</div>';
+				loadingDiv.style.position = 'fixed';
+				loadingDiv.style.top = '50%';
+				loadingDiv.style.left = '50%';
+				loadingDiv.style.transform = 'translate(-50%, -50%)';
+				loadingDiv.style.background = 'white';
+				loadingDiv.style.padding = '20px';
+				loadingDiv.style.border = '1px solid #ccc';
+				loadingDiv.style.borderRadius = '8px';
+				loadingDiv.style.zIndex = '2000';
+				document.body.appendChild(loadingDiv);
+
+				try {
+					const results = await apiManager.checkForQualityUpgrades(rdApiKey, preferences);
+					
+					let message = `Quality upgrade check completed!\n\n`;
+					message += `Torrents checked: ${results.checkedTorrents}\n`;
+					message += `Upgrades found: ${results.upgradesFound}\n`;
+					
+					if (preferences.autoUpgrade) {
+						message += `Upgrades added: ${results.upgradesAdded}\n`;
+					} else {
+						message += `Auto-upgrade is disabled. Enable it in settings to automatically add upgrades.\n`;
+					}
+					
+					if (results.errors.length > 0) {
+						message += `\nErrors:\n${results.errors.slice(0, 5).join('\n')}`;
+						if (results.errors.length > 5) {
+							message += `\n... and ${results.errors.length - 5} more errors`;
+						}
+					}
+					
+					alert(message);
+				} catch (error) {
+					alert(`Upgrade check failed: ${error.message}`);
+				} finally {
+					document.body.removeChild(loadingDiv);
+				}
+			}
+
+			// Tab switching function
+			function switchContentTab(type) {
+				const moviesSettings = document.getElementById('movies-settings');
+				const showsSettings = document.getElementById('shows-settings');
+				const tabButtons = document.querySelectorAll('.tab-button');
+
+				// Remove active class from all tabs and content
+				tabButtons.forEach(btn => btn.classList.remove('active'));
+				moviesSettings.classList.remove('active');
+				showsSettings.classList.remove('active');
+
+				if (type === 'movies') {
+					moviesSettings.classList.add('active');
+					tabButtons[0].classList.add('active');
+				} else {
+					showsSettings.classList.add('active');
+					tabButtons[1].classList.add('active');
+				}
+			}
 
 			// Enhanced Real-Debrid functions using API manager
 			async function testRealDebridConnection() {
@@ -874,57 +1139,6 @@
 				localStorage.setItem('max-upgrade-matches', document.getElementById('max-upgrade-matches').value);
 
 				alert('Settings saved successfully!');
-			}
-
-			function loadSettings() {
-				const rdApiKey = localStorage.getItem('rd-api-key');
-				
-				if (rdApiKey) {
-					document.getElementById('rd-api-key').value = rdApiKey;
-				}
-				
-				// Load basic settings
-				document.getElementById('auto-add-movies').checked = localStorage.getItem('auto-add-movies') === 'true';
-				document.getElementById('auto-add-shows').checked = localStorage.getItem('auto-add-shows') === 'true';
-				document.getElementById('search-limit').value = localStorage.getItem('search-limit') || '50';
-				document.getElementById('enable-regex').checked = localStorage.getItem('enable-regex') !== 'false';
-				
-				// Load movie preferences
-				const moviePrefs = JSON.parse(localStorage.getItem('movie-preferences') || '{}');
-				document.getElementById('movie-quality-preference').value = moviePrefs.quality || '1080p';
-				document.getElementById('movie-hdr-preference').value = moviePrefs.hdrPreference || 'any';
-				document.getElementById('movie-max-size').value = moviePrefs.maxSize || '';
-				document.getElementById('movie-auto-upgrade').checked = moviePrefs.autoUpgrade || false;
-				document.getElementById('movie-allow-higher-quality').checked = moviePrefs.allowHigherQuality || false;
-				document.getElementById('movie-delete-old').checked = moviePrefs.deleteOldAfterUpgrade || false;
-				
-				// Load movie file types
-				const movieFileTypes = moviePrefs.fileTypes || ['remux', 'bluray', 'web'];
-				document.getElementById('movie-prefer-remux').checked = movieFileTypes.includes('remux');
-				document.getElementById('movie-prefer-bluray').checked = movieFileTypes.includes('bluray');
-				document.getElementById('movie-prefer-web').checked = movieFileTypes.includes('web');
-
-				// Load show preferences
-				const showPrefs = JSON.parse(localStorage.getItem('show-preferences') || '{}');
-				document.getElementById('show-quality-preference').value = showPrefs.quality || '1080p';
-				document.getElementById('show-hdr-preference').value = showPrefs.hdrPreference || 'sdr-only';
-				document.getElementById('show-max-size').value = showPrefs.maxSize || '';
-				document.getElementById('show-auto-upgrade').checked = showPrefs.autoUpgrade || false;
-				document.getElementById('show-allow-higher-quality').checked = showPrefs.allowHigherQuality || false;
-				document.getElementById('show-delete-old').checked = showPrefs.deleteOldAfterUpgrade || false;
-				document.getElementById('show-complete-seasons').checked = showPrefs.completeSeasons !== false;
-				document.getElementById('show-next-episodes').checked = showPrefs.nextEpisodes !== false;
-				document.getElementById('show-all-seasons').checked = showPrefs.allSeasons || false;
-				
-				// Load show file types
-				const showFileTypes = showPrefs.fileTypes || ['web'];
-				document.getElementById('show-prefer-remux').checked = showFileTypes.includes('remux');
-				document.getElementById('show-prefer-bluray').checked = showFileTypes.includes('bluray');
-				document.getElementById('show-prefer-web').checked = showFileTypes.includes('web');
-
-				// Load global upgrade settings
-				document.getElementById('check-for-upgrades').checked = localStorage.getItem('check-for-upgrades') === 'true';
-				document.getElementById('max-upgrade-matches').value = localStorage.getItem('max-upgrade-matches') || '3';
 			}
 
 			// Enhanced runAutoAdd with separate movie/show preferences
@@ -996,86 +1210,121 @@
 				}
 			}
 
-			// Add the missing switchContentTab function
-			function switchContentTab(type) {
-				const moviesSettings = document.getElementById('movies-settings');
-				const showsSettings = document.getElementById('shows-settings');
-				const tabButtons = document.querySelectorAll('.tab-button');
+			async function addToRealDebrid(magnet) {
+				const apiKey = localStorage.getItem('rd-api-key');
+				if (!apiKey) {
+					alert('Please configure your Real-Debrid API key first');
+					return;
+				}
 
-				// Remove active class from all tabs and content
-				tabButtons.forEach(btn => btn.classList.remove('active'));
-				moviesSettings.classList.remove('active');
-				showsSettings.classList.remove('active');
-
-				if (type === 'movies') {
-					moviesSettings.classList.add('active');
-					tabButtons[0].classList.add('active');
+				const result = await apiManager.addMagnetToRealDebrid(apiKey, magnet);
+				
+				if (result.success) {
+					alert('Successfully added to Real-Debrid!');
 				} else {
-					showsSettings.classList.add('active');
-					tabButtons[1].classList.add('active');
+					alert(`Failed to add to Real-Debrid: ${result.error}`);
 				}
 			}
 
-			// Add the checkUpgradesNow function to global scope
+			async function addAllToRealDebrid() {
+				const apiKey = localStorage.getItem('rd-api-key');
+				if (!apiKey) {
+					alert('Please configure your Real-Debrid API key first');
+					return;
+				}
+
+				if (!window.currentSearchResults || window.currentSearchResults.length === 0) {
+					alert('No magnet links to add');
+					return;
+				}
+
+				if (!confirm(`Add ${window.currentSearchResults.length} magnet links to Real-Debrid?`)) {
+					return;
+				}
+
+				let successful = 0;
+				let failed = 0;
+
+				for (const result of window.currentSearchResults) {
+					const addResult = await apiManager.addMagnetToRealDebrid(apiKey, result.content);
+					if (addResult.success) {
+						successful++;
+					} else {
+						failed++;
+					}
+					
+					// Small delay to avoid rate limiting
+					await new Promise(resolve => setTimeout(resolve, 1000));
+				}
+
+				alert(`Bulk add completed: ${successful} successful, ${failed} failed`);
+			}
+
+			// Enhanced Trakt functions
+			async function connectTrakt() {
+				// For production, you'd implement proper OAuth flow
+				const clientId = prompt('Enter your Trakt Client ID (get one from https://trakt.tv/oauth/applications):');
+				if (!clientId) return;
+
+				const redirectUri = encodeURIComponent(window.location.origin);
+				const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=random-state`;
+				
+				window.open(authUrl, '_blank');
+				
+				const code = prompt('Please enter the authorization code from Trakt:');
+				if (code) {
+					localStorage.setItem('trakt-token', 'demo-token-' + code);
+					localStorage.setItem('trakt-client-id', clientId);
+					alert('Successfully connected to Trakt!');
+					updateStatusIndicators();
+				}
+			}
+
+			function disconnectTrakt() {
+				localStorage.removeItem('trakt-token');
+				localStorage.removeItem('trakt-client-id');
+				alert('Disconnected from Trakt');
+				updateStatusIndicators();
+			}
+
+			async function addToTraktWatchlist(title, type = 'movie') {
+				const traktToken = localStorage.getItem('trakt-token');
+				if (!traktToken) {
+					alert('Please connect to Trakt first');
+					return;
+				}
+
+				// Search for the content first
+				const searchResult = await apiManager.searchTraktContent(title, type);
+				
+				if (searchResult.success && searchResult.data.length > 0) {
+					const item = searchResult.data[0];
+					const addResult = await apiManager.addToTraktWatchlist(traktToken, item[type], type === 'movie' ? 'movies' : 'shows');
+					
+					if (addResult.success) {
+						alert(`Added "${title}" to Trakt watchlist!`);
+					} else {
+						alert(`Failed to add to Trakt: ${addResult.error}`);
+					}
+				} else {
+					alert(`Could not find "${title}" on Trakt`);
+				}
+			}
+
+			// Make all functions globally available
+			window.getMoviePreferences = getMoviePreferences;
+			window.getShowPreferences = getShowPreferences;
+			window.getUpgradePreferences = getUpgradePreferences;
 			window.checkUpgradesNow = checkUpgradesNow;
 			window.switchContentTab = switchContentTab;
-
-			function getMoviePreferences() {
-				const movieFileTypes = [];
-				if (document.getElementById('movie-prefer-remux').checked) movieFileTypes.push('remux');
-				if (document.getElementById('movie-prefer-bluray').checked) movieFileTypes.push('bluray');
-				if (document.getElementById('movie-prefer-web').checked) movieFileTypes.push('web');
-
-				return {
-					quality: document.getElementById('movie-quality-preference').value,
-					fileTypes: movieFileTypes,
-					hdrPreference: document.getElementById('movie-hdr-preference').value,
-					maxSize: document.getElementById('movie-max-size').value,
-					autoUpgrade: document.getElementById('movie-auto-upgrade').checked,
-					allowHigherQuality: document.getElementById('movie-allow-higher-quality').checked,
-					deleteOldAfterUpgrade: document.getElementById('movie-delete-old').checked
-				};
-			}
-
-			function getShowPreferences() {
-				const showFileTypes = [];
-				if (document.getElementById('show-prefer-remux').checked) showFileTypes.push('remux');
-				if (document.getElementById('show-prefer-bluray').checked) showFileTypes.push('bluray');
-				if (document.getElementById('show-prefer-web').checked) showFileTypes.push('web');
-
-				return {
-					quality: document.getElementById('show-quality-preference').value,
-					fileTypes: showFileTypes,
-					hdrPreference: document.getElementById('show-hdr-preference').value,
-					maxSize: document.getElementById('show-max-size').value,
-					autoUpgrade: document.getElementById('show-auto-upgrade').checked,
-					allowHigherQuality: document.getElementById('show-allow-higher-quality').checked,
-					deleteOldAfterUpgrade: document.getElementById('show-delete-old').checked,
-					completeSeasons: document.getElementById('show-complete-seasons').checked,
-					nextEpisodes: document.getElementById('show-next-episodes').checked,
-					allSeasons: document.getElementById('show-all-seasons').checked
-				};
-			}
-
-			function getUpgradePreferences(contentType = null) {
-				const globalPrefs = {
-					checkForUpgrades: document.getElementById('check-for-upgrades').checked,
-					maxUpgradeMatches: parseInt(document.getElementById('max-upgrade-matches').value) || 3
-				};
-
-				if (contentType === 'movie') {
-					return { ...globalPrefs, ...getMoviePreferences() };
-				} else if (contentType === 'tv') {
-					return { ...globalPrefs, ...getShowPreferences() };
-				} else {
-					// Return both for mixed content
-					return {
-						...globalPrefs,
-						movies: getMoviePreferences(),
-						shows: getShowPreferences()
-					};
-				}
-			}
+			window.testRealDebridConnection = testRealDebridConnection;
+			window.saveRealDebridSettings = saveRealDebridSettings;
+			window.runAutoAdd = runAutoAdd;
+			window.addToRealDebrid = addToRealDebrid;
+			window.addAllToRealDebrid = addAllToRealDebrid;
+			window.connectTrakt = connectTrakt;
+			window.disconnectTrakt = disconnectTrakt;
+			window.addToTraktWatchlist = addToTraktWatchlist;
 		</script>
 	</body>
 </html>
